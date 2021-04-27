@@ -471,7 +471,7 @@ export function App({ lang, onUnload, webSocketConnected }) {
                       component={CustomResourceDefinition}
                     />
 
-                    <Redirect to={urls.pipelineRuns.all()} />
+                    <Redirect to={urls.pipelines.all()} />
                   </Switch>
                 </PageErrorBoundary>
               </Content>
