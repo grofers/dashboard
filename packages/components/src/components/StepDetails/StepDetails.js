@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,8 +18,6 @@ import { getStatus, getStepStatusReason } from '@tektoncd/dashboard-utils';
 
 import { DetailsHeader, StepDefinition, StepStatus, Tab, Tabs } from '..';
 
-import './StepDetails.scss';
-
 const tabs = ['logs', 'status', 'details'];
 
 const StepDetails = props => {
@@ -28,7 +26,6 @@ const StepDetails = props => {
     intl,
     logContainer,
     onViewChange,
-    showIO,
     stepName,
     stepStatus,
     taskRun,
@@ -84,11 +81,7 @@ const StepDetails = props => {
             defaultMessage: 'Details'
           })}
         >
-          <StepDefinition
-            definition={definition}
-            showIO={showIO}
-            taskRun={taskRun}
-          />
+          <StepDefinition definition={definition} />
         </Tab>
       </Tabs>
     </div>
@@ -97,13 +90,11 @@ const StepDetails = props => {
 
 StepDetails.propTypes = {
   onViewChange: PropTypes.func,
-  showIO: PropTypes.bool,
   taskRun: PropTypes.shape({})
 };
 
 StepDetails.defaultProps = {
   onViewChange: /* istanbul ignore next */ () => {},
-  showIO: false,
   taskRun: {}
 };
 

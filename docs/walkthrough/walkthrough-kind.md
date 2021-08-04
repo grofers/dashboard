@@ -116,22 +116,6 @@ kubectl wait -n tekton-pipelines \
   --timeout=90s
 ```
 
-## Installing Tekton Triggers (optional)
-
-Installing Tekton Triggers is not mandatory, if you don't want to install Tekton Triggers, you can skip this section.
-If you don't install Tekton Triggers, triggers related resources won't show up in the side nav.
-
-Installing the latest Tekton Triggers release is done by running the following command:
-
-```bash
-kubectl apply --filename https://storage.googleapis.com/tekton-releases/triggers/latest/release.yaml
-
-kubectl wait -n tekton-pipelines \
-  --for=condition=ready pod \
-  --selector=app.kubernetes.io/part-of=tekton-triggers,app.kubernetes.io/component=controller \
-  --timeout=90s
-```
-
 ## Installing Tekton Dashboard
 
 Installing the latest Tekton Dashboard release is done by running the following command:
@@ -156,7 +140,7 @@ Assuming the following url `http://tekton-dashboard.127.0.0.1.nip.io`, run the f
 
 ```bash
 kubectl apply -n tekton-pipelines -f - <<EOF
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: tekton-dashboard
@@ -165,13 +149,18 @@ spec:
   - host: tekton-dashboard.127.0.0.1.nip.io
     http:
       paths:
-      - backend:
-          serviceName: tekton-dashboard
-          servicePort: 9097
+      - pathType: ImplementationSpecific
+        backend:
+          service:
+            name: tekton-dashboard
+            port:
+              number: 9097
 EOF
 ```
 
 Browse `http://tekton-dashboard.127.0.0.1.nip.io` to access your dashboard.
+
+**NOTE:** If accessing the dashboard via the URL does not work, ensure that you have no other processes using port 80, e.g. nginx.
 
 **NOTE:** Alternatively you can use the `--ingress-url` argument when invoking the `installer` script to create the `Ingress` resource:
 

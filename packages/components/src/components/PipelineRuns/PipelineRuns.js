@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -17,10 +17,9 @@ import { Link } from 'react-router-dom';
 import { StatusIcon, Table } from '@tektoncd/dashboard-components';
 import { getStatus, urls } from '@tektoncd/dashboard-utils';
 import { Pending24 as DefaultIcon } from '@carbon/icons-react';
+import { Link as CarbonLink } from 'carbon-components-react';
 
 import { FormattedDate, FormattedDuration, RunDropdown } from '..';
-
-import './PipelineRuns.scss';
 
 const PipelineRuns = ({
   batchActionButtons = [],
@@ -157,7 +156,11 @@ const PipelineRuns = ({
     return {
       id: getPipelineRunId(pipelineRun),
       name: pipelineRunURL ? (
-        <Link to={pipelineRunURL} title={pipelineRunName}>
+        <Link
+          component={CarbonLink}
+          to={pipelineRunURL}
+          title={pipelineRunName}
+        >
           {pipelineRunName}
         </Link>
       ) : (
@@ -166,7 +169,11 @@ const PipelineRuns = ({
       pipeline:
         pipelineRefName &&
         (pipelineRunsByPipelineURL ? (
-          <Link to={pipelineRunsByPipelineURL} title={pipelineRefName}>
+          <Link
+            component={CarbonLink}
+            to={pipelineRunsByPipelineURL}
+            title={pipelineRefName}
+          >
             {pipelineRefName}
           </Link>
         ) : (

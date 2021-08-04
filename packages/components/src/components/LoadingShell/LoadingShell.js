@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Tekton Authors
+Copyright 2020-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -24,8 +24,6 @@ import {
   SideNavMenu
 } from 'carbon-components-react';
 import { Header } from '..';
-
-import './LoadingShell.scss';
 
 const SkeletonText = ({ heading, paragraph }) => (
   <CarbonSkeletonText heading={heading} paragraph={paragraph} width="80%" />
@@ -67,6 +65,13 @@ const LoadingShell = ({ intl }) => {
             {intl.formatMessage({
               id: 'dashboard.about.title',
               defaultMessage: 'About'
+            })}
+          </SideNavLink>
+
+          <SideNavLink icon={<span />}>
+            {intl.formatMessage({
+              id: 'dashboard.settings.title',
+              defaultMessage: 'Settings'
             })}
           </SideNavLink>
         </SideNavItems>

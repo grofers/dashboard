@@ -11,36 +11,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { injectIntl } from 'react-intl';
 import { Link } from 'react-router-dom';
-import { connect } from 'react-redux';
-import { InlineNotification } from 'carbon-components-react';
-import { getErrorMessage, getTitle, urls } from '@tektoncd/dashboard-utils';
+import {
+  Link as CarbonLink,
+  InlineNotification
+} from 'carbon-components-react';
+import {
+  ALL_NAMESPACES,
+  getErrorMessage,
+  urls,
+  useTitleSync
+} from '@tektoncd/dashboard-utils';
 import { Table } from '@tektoncd/dashboard-components';
 
-import {
-  getExtensions,
-  getExtensionsErrorMessage,
-  isFetchingExtensions
-} from '../../reducers';
+import { useExtensions, useTenantNamespace } from '../../api';
 
-import '../../scss/Definitions.scss';
+function Extensions(props) {
+  const { intl } = props;
 
-export const Extensions = /* istanbul ignore next */ ({
-  error,
-  intl,
-  loading,
-  extensions
-}) => {
-  useEffect(() => {
-    document.title = getTitle({
-      page: intl.formatMessage({
-        id: 'dashboard.extensions.title',
-        defaultMessage: 'Extensions'
-      })
-    });
-  }, []);
+  useTitleSync({
+    page: intl.formatMessage({
+      id: 'dashboard.extensions.title',
+      defaultMessage: 'Extensions'
+    })
+  });
+
+  const tenantNamespace = useTenantNamespace();
+  const { data: extensions = [], error, isFetching } = useExtensions({
+    namespace: tenantNamespace || ALL_NAMESPACES
+  });
 
   const emptyText = intl.formatMessage({
     id: 'dashboard.extensions.emptyState',
@@ -78,46 +79,32 @@ export const Extensions = /* istanbul ignore next */ ({
             })
           }
         ]}
-        rows={extensions.map(
-          ({ apiGroup, apiVersion, displayName, extensionType, name }) => ({
-            id: name,
-            name: (
-              <Link
-                to={
-                  extensionType === 'kubernetes-resource'
-                    ? urls.kubernetesResources.all({
-                        group: apiGroup,
-                        version: apiVersion,
-                        type: name
-                      })
-                    : urls.extensions.byName({ name })
-                }
-                title={displayName}
-              >
-                {displayName}
-              </Link>
-            )
-          })
-        )}
-        loading={loading}
+        rows={extensions.map(({ apiGroup, apiVersion, displayName, name }) => ({
+          id: name,
+          name: (
+            <Link
+              component={CarbonLink}
+              to={urls.kubernetesResources.all({
+                group: apiGroup,
+                version: apiVersion,
+                type: name
+              })}
+              title={displayName}
+            >
+              {displayName}
+            </Link>
+          )
+        }))}
+        loading={isFetching}
         emptyTextAllNamespaces={emptyText}
         emptyTextSelectedNamespace={emptyText}
       />
     </>
   );
-};
+}
 
 Extensions.defaultProps = {
   extensions: []
 };
 
-/* istanbul ignore next */
-function mapStateToProps(state) {
-  return {
-    error: getExtensionsErrorMessage(state),
-    loading: isFetchingExtensions(state),
-    extensions: getExtensions(state)
-  };
-}
-
-export default connect(mapStateToProps)(injectIntl(Extensions));
+export default injectIntl(Extensions);

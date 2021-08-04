@@ -17,60 +17,45 @@ import { Provider } from 'react-redux';
 import thunk from 'redux-thunk';
 import configureStore from 'redux-mock-store';
 import { ALL_NAMESPACES, urls } from '@tektoncd/dashboard-utils';
-import {
-  renderWithIntl,
-  renderWithRouter
-} from '@tektoncd/dashboard-components/src/utils/test';
 
+import { render, renderWithRouter } from '../../utils/test';
 import ImportResourcesContainer from './ImportResources';
 import * as API from '../../api';
+import * as APIUtils from '../../api/utils';
 
 describe('ImportResources component', () => {
   const middleware = [thunk];
   const mockStore = configureStore(middleware);
   const store = mockStore({
-    namespaces: {
-      byName: { namespace1: true, default: true },
-      isFetching: false,
-      selected: ALL_NAMESPACES
-    },
-    notifications: {},
-    properties: {
-      DashboardNamespace: 'namespace1'
-    },
-    serviceAccounts: {
-      byNamespace: {
-        namespace1: {
-          'service-account-1': 'id-service-account-1'
-        }
-      },
-      byId: {
-        'id-service-account-1': {
-          metadata: {
-            name: 'service-account-1',
-            namespace: 'namespace1',
-            uid: 'id-service-account-1'
-          }
-        }
-      },
-      isFetching: false
-    }
+    notifications: {}
+  });
+
+  beforeEach(() => {
+    jest
+      .spyOn(API, 'useDashboardNamespace')
+      .mockImplementation(() => 'namespace1');
+    jest
+      .spyOn(API, 'useNamespaces')
+      .mockImplementation(() => ({ data: ['namespace1', 'default'] }));
+    jest
+      .spyOn(APIUtils, 'useSelectedNamespace')
+      .mockImplementation(() => ({ selectedNamespace: ALL_NAMESPACES }));
   });
 
   it('Displays errors when Repository URL and Namespace is empty', async () => {
-    const { getByText } = await renderWithIntl(
+    const { getByText } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
     );
 
-    fireEvent.click(getByText('Import and Apply'));
+    fireEvent.click(getByText('Import'));
     await waitFor(() => getByText(/Please enter a valid Git URL/i));
-    await waitFor(() => getByText(/Please select a namespace/i));
+    await waitFor(() => getByText(/Please select a Namespace/i));
   });
 
   it('Displays an error when Repository URL is empty', async () => {
-    const { getAllByPlaceholderText, getByText } = await renderWithIntl(
+    const { getAllByPlaceholderText, getByText } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
@@ -80,24 +65,24 @@ describe('ImportResources component', () => {
     fireEvent.click(getAllByPlaceholderText(/select namespace/i)[0]);
     fireEvent.click(getByText(namespace));
 
-    fireEvent.click(getByText('Import and Apply'));
+    fireEvent.click(getByText('Import'));
     await waitFor(() => getByText(/Please enter a valid Git URL/i));
   });
 
   it('Displays an error when Namespace is empty', async () => {
-    const { getByTestId, getByText } = await renderWithIntl(
+    const { getByPlaceholderText, getByText } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
     );
 
-    const repoURLField = getByTestId('repository-url-field');
+    const repoURLField = getByPlaceholderText(/my-repository/);
     fireEvent.change(repoURLField, {
       target: { value: 'https://github.com/test/testing' }
     });
 
-    fireEvent.click(getByText('Import and Apply'));
-    await waitFor(() => getByText(/Please select a namespace/i));
+    fireEvent.click(getByText('Import'));
+    await waitFor(() => getByText(/Please select a Namespace/i));
   });
 
   it('Valid data submit displays success notification ', async () => {
@@ -105,6 +90,10 @@ describe('ImportResources component', () => {
     const headers = {
       metadata: { name: pipelineRunName }
     };
+
+    const pathValue = 'some/path';
+    const repositoryURLValue = 'https://github.com/test/testing';
+    const revisionValue = 'main';
 
     jest
       .spyOn(API, 'importResources')
@@ -115,6 +104,7 @@ describe('ImportResources component', () => {
           namespace,
           path,
           repositoryURL,
+          revision,
           serviceAccount
         }) => {
           const labelsShouldEqual = {
@@ -123,8 +113,9 @@ describe('ImportResources component', () => {
             gitServer: 'github.com'
           };
 
-          expect(repositoryURL).toEqual('https://github.com/test/testing');
-          expect(path).toEqual('');
+          expect(repositoryURL).toEqual(repositoryURLValue);
+          expect(path).toEqual(pathValue);
+          expect(revision).toEqual(revisionValue);
           expect(namespace).toEqual('default');
           expect(labels).toEqual(labelsShouldEqual);
           expect(serviceAccount).toEqual('');
@@ -138,7 +129,7 @@ describe('ImportResources component', () => {
 
     const {
       getAllByPlaceholderText,
-      getByTestId,
+      getByPlaceholderText,
       getByText
     } = await renderWithRouter(
       <Provider store={store}>
@@ -146,15 +137,19 @@ describe('ImportResources component', () => {
       </Provider>
     );
 
-    const repoURLField = getByTestId('repository-url-field');
-    fireEvent.change(repoURLField, {
-      target: { value: 'https://github.com/test/testing' }
-    });
+    const repoURLField = getByPlaceholderText(/my-repository/);
+    fireEvent.change(repoURLField, { target: { value: repositoryURLValue } });
+
+    const pathField = getByPlaceholderText(/enter repository path/i);
+    fireEvent.change(pathField, { target: { value: pathValue } });
+
+    const revisionField = getByPlaceholderText(/revision/i);
+    fireEvent.change(revisionField, { target: { value: revisionValue } });
 
     fireEvent.click(getAllByPlaceholderText(/select namespace/i)[0]);
     fireEvent.click(getByText(namespace));
 
-    fireEvent.click(getByText('Import and Apply'));
+    fireEvent.click(getByText('Import'));
     await waitFor(() =>
       getByText(/Triggered PipelineRun to import Tekton resources/i)
     );
@@ -179,31 +174,31 @@ describe('ImportResources component', () => {
 
     const {
       getAllByPlaceholderText,
-      getByTestId,
+      getByPlaceholderText,
       getByText
-    } = await renderWithIntl(
+    } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
     );
 
-    const repoURLField = getByTestId('repository-url-field');
+    const repoURLField = getByPlaceholderText(/my-repository/);
     fireEvent.change(repoURLField, { target: { value: 'URL' } });
 
     fireEvent.click(getAllByPlaceholderText(/select namespace/i)[0]);
     fireEvent.click(getByText('namespace1'));
 
-    fireEvent.click(getByText('Import and Apply'));
+    fireEvent.click(getByText('Import'));
     await waitFor(() => getByText(/Please enter a valid Git URL/i));
   });
 
   it('URL TextInput handles onChange event', async () => {
-    const { getByTestId, queryByDisplayValue } = await renderWithIntl(
+    const { getByPlaceholderText, queryByDisplayValue } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
     );
-    const repoURLField = getByTestId('repository-url-field');
+    const repoURLField = getByPlaceholderText(/my-repository/);
     fireEvent.change(repoURLField, {
       target: { value: 'Invalid URL here' }
     });
@@ -218,7 +213,7 @@ describe('ImportResources component', () => {
       getAllByTitle,
       queryByText,
       queryByDisplayValue
-    } = await renderWithIntl(
+    } = await render(
       <Provider store={store}>
         <ImportResourcesContainer />
       </Provider>
@@ -226,7 +221,7 @@ describe('ImportResources component', () => {
     fireEvent.click(getAllByPlaceholderText(/select namespace/i)[0]);
     fireEvent.click(getByText('default'));
     fireEvent.click(getAllByTitle(/Clear selected item/i)[0]);
-    await waitFor(() => queryByText(/please select a namespace/i));
+    await waitFor(() => queryByText(/please select a Namespace/i));
     expect(queryByDisplayValue('default')).toBeFalsy();
   });
 });

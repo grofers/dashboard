@@ -11,12 +11,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-@import '~carbon-components/scss/globals/scss/typography';
+@import 'carbon-components/scss/globals/scss/typography';
 
 header.tkn--pipeline-run-header {
   @include type-style('body-short-01');
   line-height: 1;
-  background: white;
+  background: $ui-01;
   margin-bottom: 2em;
   padding: .4em 0 .4em 1.5em;
 
@@ -47,7 +47,7 @@ header.tkn--pipeline-run-header {
       white-space: nowrap;
     }
 
-    .tkn--rerun-btn {
+    .tkn--runaction-btn {
       margin-left: auto;
     }
   }
@@ -96,7 +96,7 @@ header.tkn--pipeline-run-header {
 
   &[data-succeeded='Unknown'][data-reason='PipelineRunPending'] {
     .tkn--status-label {
-      color: $gray-70;
+      color: $text-02;
     }
   }
 

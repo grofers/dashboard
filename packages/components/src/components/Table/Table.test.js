@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,7 +15,7 @@ import React from 'react';
 import { fireEvent } from '@testing-library/react';
 import { ALL_NAMESPACES } from '@tektoncd/dashboard-utils';
 
-import { renderWithIntl } from '../../utils/test';
+import { render } from '../../utils/test';
 import Table from './Table';
 
 const rows = [
@@ -36,12 +36,12 @@ const rows = [
 const headers = [
   { key: 'name', header: 'Name' },
   { key: 'namespace', header: 'Namespace' },
-  { key: 'date', header: 'Date Created' }
+  { key: 'date', header: 'Date created' }
 ];
 
 const toolbarButtons = [
   { onClick: () => {}, text: 'Add', icon: null },
-  { onClick: () => {}, text: 'Rerun All', icon: null }
+  { onClick: () => {}, text: 'Rerun all', icon: null }
 ];
 
 const batchActionButtons = [
@@ -63,9 +63,7 @@ describe('Table', () => {
       emptyTextAllNamespaces,
       emptyTextSelectedNamespace
     };
-    const { queryByLabelText, queryByText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByLabelText, queryByText } = render(<Table {...props} />);
 
     expect(queryByText(title)).toBeFalsy();
     expect(
@@ -73,7 +71,7 @@ describe('Table', () => {
     ).toBeFalsy();
     expect(queryByText('Name')).toBeTruthy();
     expect(queryByText('Namespace')).toBeTruthy();
-    expect(queryByText('Date Created')).toBeTruthy();
+    expect(queryByText('Date created')).toBeTruthy();
     expect(queryByText(/Delete/i)).toBeFalsy();
     expect(queryByText(/Add/i)).toBeFalsy();
     expect(queryByText(emptyTextAllNamespaces)).toBeTruthy();
@@ -96,9 +94,7 @@ describe('Table', () => {
       title,
       toolbarButtons: toolbarButtons.slice(0, 1)
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(queryByText('Resource')).toBeTruthy();
     expect(
@@ -120,9 +116,7 @@ describe('Table', () => {
       headers,
       selectedNamespace: ALL_NAMESPACES
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(queryByText(title)).toBeNull();
     expect(
@@ -147,7 +141,7 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES,
       isSortable: true
     };
-    const { queryByText } = renderWithIntl(<Table {...props} />);
+    const { queryByText } = render(<Table {...props} />);
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
@@ -163,7 +157,7 @@ describe('Table', () => {
       rows: rows.slice(0, 1),
       selectedNamespace: ALL_NAMESPACES
     };
-    const { queryByText } = renderWithIntl(<Table {...props} />);
+    const { queryByText } = render(<Table {...props} />);
 
     expect(queryByText(filters)).toBeTruthy();
   });
@@ -176,15 +170,13 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES,
       toolbarButtons: toolbarButtons.slice(0, 1)
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
     ).toBeFalsy();
     expect(queryByText(/Delete/i)).toBeNull();
-    expect(queryByText(/Rerun All/i)).toBeNull();
+    expect(queryByText(/Rerun all/i)).toBeNull();
     expect(queryByText(/Add/i)).toBeTruthy();
     expect(queryByLabelText('Select all rows')).toBeNull();
     expect(queryByLabelText('Select row')).toBeNull();
@@ -198,16 +190,14 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES,
       toolbarButtons
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
     ).toBeFalsy();
     expect(queryByText(/Delete/i)).toBeNull();
     expect(queryByText(/Add/i)).toBeTruthy();
-    expect(queryByText(/Rerun All/i)).toBeTruthy();
+    expect(queryByText(/Rerun all/i)).toBeTruthy();
     expect(queryByLabelText('Select all rows')).toBeNull();
     expect(queryByLabelText('Select row')).toBeNull();
   });
@@ -220,9 +210,7 @@ describe('Table', () => {
       headers,
       selectedNamespace: ALL_NAMESPACES
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
@@ -242,16 +230,14 @@ describe('Table', () => {
       headers,
       selectedNamespace: ALL_NAMESPACES
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
     ).toBeFalsy();
     expect(queryByText(/Delete/i)).toBeTruthy();
     expect(queryByText(/Rerun/i)).toBeTruthy();
-    expect(queryByText(/Rerun All/i)).toBeNull();
+    expect(queryByText(/Rerun all/i)).toBeNull();
     expect(queryByText(/Add/i)).toBeNull();
     expect(queryByLabelText('Select all rows')).toBeTruthy();
     expect(queryByLabelText('Select row')).toBeTruthy();
@@ -267,11 +253,9 @@ describe('Table', () => {
       toolbarButtons,
       isSortable: true
     };
-    const {
-      queryAllByLabelText,
-      queryByText,
-      queryByLabelText
-    } = renderWithIntl(<Table {...props} />);
+    const { queryAllByLabelText, queryByText, queryByLabelText } = render(
+      <Table {...props} />
+    );
 
     expect(
       queryByText('Name').parentNode.className.includes('sort')
@@ -279,7 +263,7 @@ describe('Table', () => {
     expect(queryByText(/Add/i)).toBeTruthy();
     expect(queryByText(/Delete/i)).toBeTruthy();
     expect(queryByText('Rerun')).toBeTruthy();
-    expect(queryByText('Rerun All')).toBeTruthy();
+    expect(queryByText('Rerun all')).toBeTruthy();
     expect(queryByLabelText('Select all rows')).toBeTruthy();
     expect(queryAllByLabelText('Select row')[0]).toBeTruthy();
   });
@@ -292,7 +276,7 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES,
       toolbarButtons: toolbarButtons.slice(0, 1)
     };
-    const { queryByText } = renderWithIntl(<Table {...props} />);
+    const { queryByText } = render(<Table {...props} />);
 
     expect(queryByText(/Add/i).disabled).toBeTruthy();
   });
@@ -304,14 +288,12 @@ describe('Table', () => {
       headers,
       selectedNamespace: ALL_NAMESPACES
     };
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(queryByText(/Resources/i)).toBeNull();
     expect(queryByText('Name')).toBeTruthy();
     expect(queryByText('Namespace')).toBeTruthy();
-    expect(queryByText('Date Created')).toBeTruthy();
+    expect(queryByText('Date created')).toBeTruthy();
     expect(queryByText(/Delete/i)).toBeNull();
     expect(queryByText(/Add/i)).toBeNull();
     expect(queryByLabelText('Select all rows')).toBeNull();
@@ -329,9 +311,7 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES
     };
     props.batchActionButtons[0].onClick = handleDelete;
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(queryByText(/Delete/i)).toBeTruthy();
     expect(queryByText(/Add/i)).toBeNull();
@@ -359,9 +339,7 @@ describe('Table', () => {
       selectedNamespace: ALL_NAMESPACES
     };
     props.batchActionButtons[0].onClick = handleDelete;
-    const { queryByText, queryByLabelText } = renderWithIntl(
-      <Table {...props} />
-    );
+    const { queryByText, queryByLabelText } = render(<Table {...props} />);
 
     expect(queryByText(/Delete/i)).toBeTruthy();
     expect(queryByText(/Add/i)).toBeNull();
@@ -389,7 +367,7 @@ describe('Table', () => {
       toolbarButtons: toolbarButtons.slice(0, 1)
     };
     props.toolbarButtons[0].onClick = handleAdd;
-    const { queryByText } = renderWithIntl(<Table {...props} />);
+    const { queryByText } = render(<Table {...props} />);
 
     expect(queryByText(/Delete/i)).toBeNull();
     expect(queryByText(/Add/i)).toBeTruthy();

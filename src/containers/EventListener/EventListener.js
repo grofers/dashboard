@@ -11,59 +11,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Component } from 'react';
+import React from 'react';
 import { connect } from 'react-redux';
+import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { injectIntl } from 'react-intl';
-import { getTitle } from '@tektoncd/dashboard-utils';
-import { ResourceDetails, Trigger } from '@tektoncd/dashboard-components';
 import {
-  getEventListener,
-  getEventListenersErrorMessage,
-  getSelectedNamespace,
-  isFetchingEventListeners,
-  isWebSocketConnected
-} from '../../reducers';
-import { fetchEventListener } from '../../actions/eventListeners';
+  urls,
+  useTitleSync,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
+import { ResourceDetails, Trigger } from '@tektoncd/dashboard-components';
+import { Link as CarbonLink } from 'carbon-components-react';
+
+import { isWebSocketConnected } from '../../reducers';
+import { useEventListener } from '../../api';
 import { getViewChangeHandler } from '../../utils';
 
-import './EventListener.scss';
+export /* istanbul ignore next */ function EventListenerContainer(props) {
+  const { intl, match, webSocketConnected, view } = props;
+  const { eventListenerName, namespace } = match.params;
 
-export /* istanbul ignore next */ class EventListenerContainer extends Component {
-  componentDidMount() {
-    const { match } = this.props;
-    const { eventListenerName: resourceName } = match.params;
-    document.title = getTitle({
-      page: 'EventListener',
-      resourceName
-    });
-    this.fetchData();
-  }
+  useTitleSync({
+    page: 'EventListener',
+    resourceName: eventListenerName
+  });
 
-  componentDidUpdate(prevProps) {
-    const { match, webSocketConnected } = this.props;
-    const { namespace, eventListenerName } = match.params;
-    const {
-      match: prevMatch,
-      webSocketConnected: prevWebSocketConnected
-    } = prevProps;
-    const {
-      namespace: prevNamespace,
-      eventListenerName: prevEventListenerName
-    } = prevMatch.params;
+  const { data: eventListener, error, isFetching, refetch } = useEventListener({
+    name: eventListenerName,
+    namespace
+  });
 
-    if (
-      namespace !== prevNamespace ||
-      eventListenerName !== prevEventListenerName ||
-      (webSocketConnected && prevWebSocketConnected === false)
-    ) {
-      this.fetchData();
-    }
-  }
+  useWebSocketReconnected(refetch, webSocketConnected);
 
-  getAdditionalMetadata() {
-    const { eventListener, intl } = this.props;
-
+  function getAdditionalMetadata() {
     if (!eventListener) {
       return null;
     }
@@ -91,7 +72,7 @@ export /* istanbul ignore next */ class EventListenerContainer extends Component
             <span>
               {intl.formatMessage({
                 id: 'dashboard.eventListener.serviceType',
-                defaultMessage: 'Service Type:'
+                defaultMessage: 'Service type:'
               })}
             </span>
             {serviceType}
@@ -102,7 +83,7 @@ export /* istanbul ignore next */ class EventListenerContainer extends Component
             <span>
               {intl.formatMessage({
                 id: 'dashboard.eventListener.namespaceSelector',
-                defaultMessage: 'Namespace Selector:'
+                defaultMessage: 'Namespace selector:'
               })}
             </span>
             {namespaceSelector.matchNames.join(', ')}
@@ -112,15 +93,12 @@ export /* istanbul ignore next */ class EventListenerContainer extends Component
     );
   }
 
-  getTriggersContent() {
-    const { eventListener } = this.props;
-
+  function getTriggersContent() {
     if (!eventListener?.spec?.triggers) {
       return null;
     }
 
     const { triggers } = eventListener.spec;
-    const { namespace } = eventListener.metadata;
 
     return (
       <div className="tkn--eventlistener--triggers">
@@ -129,35 +107,41 @@ export /* istanbul ignore next */ class EventListenerContainer extends Component
             className="tkn--resourcedetails-metadata"
             key={trigger.name ? trigger.name : idx}
           >
-            <Trigger eventListenerNamespace={namespace} trigger={trigger} />
+            {trigger.triggerRef ? (
+              <div className="tkn--trigger-resourcelinks">
+                <span>Trigger:</span>
+                <Link
+                  component={CarbonLink}
+                  to={urls.triggers.byName({
+                    namespace,
+                    triggerName: trigger.triggerRef
+                  })}
+                  title={trigger.triggerRef}
+                >
+                  {trigger.triggerRef}
+                </Link>
+              </div>
+            ) : (
+              <Trigger namespace={namespace} trigger={trigger} />
+            )}
           </div>
         ))}
       </div>
     );
   }
 
-  fetchData() {
-    const { match } = this.props;
-    const { namespace, eventListenerName } = match.params;
-    this.props.fetchEventListener({ name: eventListenerName, namespace });
-  }
-
-  render() {
-    const { error, eventListener, loading, view } = this.props;
-
-    return (
-      <ResourceDetails
-        additionalMetadata={this.getAdditionalMetadata()}
-        error={error}
-        loading={loading}
-        onViewChange={getViewChangeHandler(this.props)}
-        resource={eventListener}
-        view={view}
-      >
-        {this.getTriggersContent()}
-      </ResourceDetails>
-    );
-  }
+  return (
+    <ResourceDetails
+      additionalMetadata={getAdditionalMetadata()}
+      error={error}
+      loading={isFetching}
+      onViewChange={getViewChangeHandler(props)}
+      resource={eventListener}
+      view={view}
+    >
+      {getTriggersContent()}
+    </ResourceDetails>
+  );
 }
 
 EventListenerContainer.propTypes = {
@@ -170,31 +154,14 @@ EventListenerContainer.propTypes = {
 
 /* istanbul ignore next */
 function mapStateToProps(state, ownProps) {
-  const { location, match } = ownProps;
-  const { namespace: namespaceParam, eventListenerName } = match.params;
-
+  const { location } = ownProps;
   const queryParams = new URLSearchParams(location.search);
   const view = queryParams.get('view');
 
-  const namespace = namespaceParam || getSelectedNamespace(state);
-  const eventListener = getEventListener(state, {
-    name: eventListenerName,
-    namespace
-  });
   return {
-    error: getEventListenersErrorMessage(state),
-    eventListener,
-    loading: isFetchingEventListeners(state),
     view,
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchEventListener
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(EventListenerContainer));
+export default connect(mapStateToProps)(injectIntl(EventListenerContainer));

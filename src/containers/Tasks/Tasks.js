@@ -11,18 +11,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Component } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { injectIntl } from 'react-intl';
-import isEqual from 'lodash.isequal';
 import keyBy from 'lodash.keyby';
-import { Button } from 'carbon-components-react';
+import { Button, Link as CarbonLink } from 'carbon-components-react';
 import {
   ALL_NAMESPACES,
   getFilters,
-  getTitle,
-  urls
+  urls,
+  useTitleSync,
+  useWebSocketReconnected
 } from '@tektoncd/dashboard-utils';
 import {
   DeleteModal,
@@ -35,48 +35,34 @@ import {
 } from '@carbon/icons-react';
 
 import { ListPageLayout } from '..';
-import { fetchTasks } from '../../actions/tasks';
-import { deleteTask } from '../../api';
 import {
-  getSelectedNamespace,
-  getTasks,
-  getTasksErrorMessage,
-  isFetchingTasks,
-  isReadOnly,
-  isWebSocketConnected
-} from '../../reducers';
+  deleteTask,
+  useIsReadOnly,
+  useSelectedNamespace,
+  useTasks
+} from '../../api';
+import { isWebSocketConnected } from '../../reducers';
 
-import '../../scss/Definitions.scss';
+/* istanbul ignore next */
+function Tasks(props) {
+  const { filters, intl, match, webSocketConnected } = props;
 
-export /* istanbul ignore next */ class Tasks extends Component {
-  state = {
-    deleteError: null,
-    showDeleteModal: false,
-    toBeDeleted: []
-  };
+  const { selectedNamespace } = useSelectedNamespace();
+  const { namespace = selectedNamespace } = match.params;
 
-  componentDidMount() {
-    document.title = getTitle({ page: 'Tasks' });
-    this.fetchData();
-  }
+  const [deleteError, setDeleteError] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [toBeDeleted, setToBeDeleted] = useState([]);
+  const [cancelSelection, setCancelSelection] = useState(null);
 
-  componentDidUpdate(prevProps) {
-    const { filters, namespace, webSocketConnected } = this.props;
-    const {
-      filters: prevFilters,
-      webSocketConnected: prevWebSocketConnected
-    } = prevProps;
-    if (
-      namespace !== prevProps.namespace ||
-      (webSocketConnected && prevWebSocketConnected === false) ||
-      !isEqual(filters, prevFilters)
-    ) {
-      this.fetchData();
-    }
-  }
+  const isReadOnly = useIsReadOnly();
 
-  getError() {
-    const { error, intl } = this.props;
+  const { data: tasks = [], error, isLoading, refetch } = useTasks({
+    filters,
+    namespace
+  });
+
+  function getError() {
     if (error) {
       return {
         error,
@@ -87,10 +73,9 @@ export /* istanbul ignore next */ class Tasks extends Component {
       };
     }
 
-    const { deleteError } = this.state;
     if (deleteError) {
       return {
-        clear: () => this.setState({ deleteError: null }),
+        clear: () => setDeleteError(null),
         error: deleteError
       };
     }
@@ -98,213 +83,196 @@ export /* istanbul ignore next */ class Tasks extends Component {
     return null;
   }
 
-  closeDeleteModal = () => {
-    this.setState({
-      showDeleteModal: false,
-      toBeDeleted: []
-    });
-  };
+  useTitleSync({ page: 'Tasks' });
 
-  deleteTask = task => {
-    const { name, namespace } = task.metadata;
-    deleteTask({ name, namespace }).catch(error => {
-      error.response.text().then(text => {
-        const statusCode = error.response.status;
+  useWebSocketReconnected(refetch, webSocketConnected);
+
+  function closeDeleteModal() {
+    setShowDeleteModal(false);
+    setToBeDeleted([]);
+  }
+
+  function handleDeleteTask(task) {
+    deleteTask({
+      name: task.metadata.name,
+      namespace: task.metadata.namespace
+    }).catch(err => {
+      err.response.text().then(text => {
+        const statusCode = err.response.status;
         let errorMessage = `error code ${statusCode}`;
         if (text) {
           errorMessage = `${text} (error code ${statusCode})`;
         }
-        this.setState({ deleteError: errorMessage });
+        setDeleteError(errorMessage);
       });
     });
-  };
-
-  handleDelete = async () => {
-    const { cancelSelection, toBeDeleted } = this.state;
-    const deletions = toBeDeleted.map(resource => this.deleteTask(resource));
-    this.closeDeleteModal();
-    await Promise.all(deletions);
-    cancelSelection();
-  };
-
-  openDeleteModal = (selectedRows, cancelSelection) => {
-    const resourcesById = keyBy(this.props.tasks, 'metadata.uid');
-    const toBeDeleted = selectedRows.map(({ id }) => resourcesById[id]);
-    this.setState({ showDeleteModal: true, toBeDeleted, cancelSelection });
-  };
-
-  fetchData() {
-    const { filters, namespace } = this.props;
-    this.props.fetchTasks({ filters, namespace });
   }
 
-  render() {
-    const { loading, tasks, intl, namespace: selectedNamespace } = this.props;
-    const { showDeleteModal, toBeDeleted } = this.state;
+  async function handleDelete() {
+    const deletions = toBeDeleted.map(resource => handleDeleteTask(resource));
+    closeDeleteModal();
+    await Promise.all(deletions);
+    cancelSelection();
+  }
 
-    const batchActionButtons = this.props.isReadOnly
-      ? []
-      : [
-          {
-            onClick: this.openDeleteModal,
-            text: intl.formatMessage({
+  function openDeleteModal(selectedRows, handleCancelSelection) {
+    const resourcesById = keyBy(tasks, 'metadata.uid');
+    setShowDeleteModal(true);
+    setToBeDeleted(selectedRows.map(({ id }) => resourcesById[id]));
+    setCancelSelection(() => handleCancelSelection);
+  }
+
+  const batchActionButtons = isReadOnly
+    ? []
+    : [
+        {
+          onClick: openDeleteModal,
+          text: intl.formatMessage({
+            id: 'dashboard.actions.deleteButton',
+            defaultMessage: 'Delete'
+          }),
+          icon: DeleteIcon
+        }
+      ];
+
+  const initialHeaders = [
+    {
+      key: 'name',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.name',
+        defaultMessage: 'Name'
+      })
+    },
+    {
+      key: 'namespace',
+      header: 'Namespace'
+    },
+    {
+      key: 'createdTime',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.createdTime',
+        defaultMessage: 'Created'
+      })
+    },
+    {
+      key: 'actions',
+      header: ''
+    }
+  ];
+
+  const tasksFormatted = tasks.map(task => ({
+    id: task.metadata.uid,
+    name: (
+      <Link
+        component={CarbonLink}
+        to={urls.rawCRD.byNamespace({
+          namespace: task.metadata.namespace,
+          type: 'tasks',
+          name: task.metadata.name
+        })}
+        title={task.metadata.name}
+      >
+        {task.metadata.name}
+      </Link>
+    ),
+    namespace: task.metadata.namespace,
+    createdTime: (
+      <FormattedDate date={task.metadata.creationTimestamp} relative />
+    ),
+    actions: (
+      <>
+        {!isReadOnly ? (
+          <Button
+            className="tkn--danger"
+            hasIconOnly
+            iconDescription={intl.formatMessage({
               id: 'dashboard.actions.deleteButton',
               defaultMessage: 'Delete'
-            }),
-            icon: DeleteIcon
-          }
-        ];
-
-    const initialHeaders = [
-      {
-        key: 'name',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.name',
-          defaultMessage: 'Name'
-        })
-      },
-      {
-        key: 'namespace',
-        header: 'Namespace'
-      },
-      {
-        key: 'createdTime',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.createdTime',
-          defaultMessage: 'Created'
-        })
-      },
-      {
-        key: 'actions',
-        header: ''
-      }
-    ];
-
-    const tasksFormatted = tasks.map(task => ({
-      id: task.metadata.uid,
-      name: (
-        <Link
-          to={urls.rawCRD.byNamespace({
-            namespace: task.metadata.namespace,
-            type: 'tasks',
-            name: task.metadata.name
-          })}
-          title={task.metadata.name}
-        >
-          {task.metadata.name}
-        </Link>
-      ),
-      namespace: task.metadata.namespace,
-      createdTime: (
-        <FormattedDate date={task.metadata.creationTimestamp} relative />
-      ),
-      actions: (
-        <>
-          {!this.props.isReadOnly ? (
-            <Button
-              className="tkn--danger"
-              hasIconOnly
-              iconDescription={intl.formatMessage({
-                id: 'dashboard.actions.deleteButton',
-                defaultMessage: 'Delete'
-              })}
-              kind="ghost"
-              onClick={() =>
-                this.openDeleteModal([{ id: task.metadata.uid }], () => {})
-              }
-              renderIcon={DeleteIcon}
-              size="sm"
-              tooltipAlignment="center"
-              tooltipPosition="left"
-            />
-          ) : null}
-          <Button
-            as={Link}
-            hasIconOnly
-            iconDescription={intl.formatMessage(
-              {
-                id: 'dashboard.resourceList.viewRuns',
-                defaultMessage: 'View {kind} of {resource}'
-              },
-              { kind: 'TaskRuns', resource: task.metadata.name }
-            )}
-            kind="ghost"
-            renderIcon={RunsIcon}
-            size="sm"
-            to={urls.taskRuns.byTask({
-              namespace: task.metadata.namespace,
-              taskName: task.metadata.name
             })}
+            kind="ghost"
+            onClick={() =>
+              openDeleteModal([{ id: task.metadata.uid }], () => {})
+            }
+            renderIcon={DeleteIcon}
+            size="sm"
             tooltipAlignment="center"
             tooltipPosition="left"
           />
-        </>
-      )
-    }));
-
-    return (
-      <ListPageLayout {...this.props} error={this.getError()} title="Tasks">
-        <Table
-          batchActionButtons={batchActionButtons}
-          className="tkn--table--inline-actions"
-          headers={initialHeaders}
-          rows={tasksFormatted}
-          loading={loading && !tasksFormatted.length}
-          selectedNamespace={selectedNamespace}
-          emptyTextAllNamespaces={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.allNamespaces',
-              defaultMessage: 'No matching {kind} found'
-            },
-            { kind: 'Tasks' }
-          )}
-          emptyTextSelectedNamespace={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.selectedNamespace',
-              defaultMessage:
-                'No matching {kind} found in namespace {selectedNamespace}'
-            },
-            { kind: 'Tasks', selectedNamespace }
-          )}
-        />
-        {showDeleteModal ? (
-          <DeleteModal
-            kind="Tasks"
-            onClose={this.closeDeleteModal}
-            onSubmit={this.handleDelete}
-            resources={toBeDeleted}
-            showNamespace={selectedNamespace === ALL_NAMESPACES}
-          />
         ) : null}
-      </ListPageLayout>
-    );
-  }
+        <Button
+          as={Link}
+          hasIconOnly
+          iconDescription={intl.formatMessage(
+            {
+              id: 'dashboard.resourceList.viewRuns',
+              defaultMessage: 'View {kind} of {resource}'
+            },
+            { kind: 'TaskRuns', resource: task.metadata.name }
+          )}
+          kind="ghost"
+          renderIcon={RunsIcon}
+          size="sm"
+          to={urls.taskRuns.byTask({
+            namespace: task.metadata.namespace,
+            taskName: task.metadata.name
+          })}
+          tooltipAlignment="center"
+          tooltipPosition="left"
+        />
+      </>
+    )
+  }));
+
+  return (
+    <ListPageLayout {...props} error={getError()} title="Tasks">
+      <Table
+        batchActionButtons={batchActionButtons}
+        className="tkn--table--inline-actions"
+        headers={initialHeaders}
+        rows={tasksFormatted}
+        loading={isLoading}
+        selectedNamespace={namespace}
+        emptyTextAllNamespaces={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.allNamespaces',
+            defaultMessage: 'No matching {kind} found'
+          },
+          { kind: 'Tasks' }
+        )}
+        emptyTextSelectedNamespace={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.selectedNamespace',
+            defaultMessage:
+              'No matching {kind} found in namespace {selectedNamespace}'
+          },
+          { kind: 'Tasks', selectedNamespace: namespace }
+        )}
+      />
+      {showDeleteModal ? (
+        <DeleteModal
+          kind="Tasks"
+          onClose={closeDeleteModal}
+          onSubmit={handleDelete}
+          resources={toBeDeleted}
+          showNamespace={namespace === ALL_NAMESPACES}
+        />
+      ) : null}
+    </ListPageLayout>
+  );
 }
 
 Tasks.defaultProps = {
-  filters: [],
-  tasks: []
+  filters: []
 };
 
 /* istanbul ignore next */
 function mapStateToProps(state, props) {
-  const { namespace: namespaceParam } = props.match.params;
-  const namespace = namespaceParam || getSelectedNamespace(state);
   const filters = getFilters(props.location);
 
   return {
-    error: getTasksErrorMessage(state),
     filters,
-    isReadOnly: isReadOnly(state),
-    loading: isFetchingTasks(state),
-    namespace,
-    tasks: getTasks(state, { filters, namespace }),
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchTasks
-};
-
-export default connect(mapStateToProps, mapDispatchToProps)(injectIntl(Tasks));
+export default connect(mapStateToProps)(injectIntl(Tasks));

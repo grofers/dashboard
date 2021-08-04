@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Component } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import {
@@ -19,14 +19,14 @@ import {
   Playlist16 as RunsIcon
 } from '@carbon/icons-react';
 import { injectIntl } from 'react-intl';
-import isEqual from 'lodash.isequal';
 import keyBy from 'lodash.keyby';
-import { Button } from 'carbon-components-react';
+import { Button, Link as CarbonLink } from 'carbon-components-react';
 import {
   ALL_NAMESPACES,
   getFilters,
-  getTitle,
-  urls
+  urls,
+  useTitleSync,
+  useWebSocketReconnected
 } from '@tektoncd/dashboard-utils';
 import {
   DeleteModal,
@@ -35,48 +35,37 @@ import {
 } from '@tektoncd/dashboard-components';
 
 import { ListPageLayout } from '..';
-import { fetchPipelines } from '../../actions/pipelines';
-import { deletePipeline } from '../../api';
 import {
-  getPipelines,
-  getPipelinesErrorMessage,
-  getSelectedNamespace,
-  isFetchingPipelines,
-  isReadOnly,
-  isWebSocketConnected
-} from '../../reducers';
+  deletePipeline,
+  useIsReadOnly,
+  usePipelines,
+  useSelectedNamespace
+} from '../../api';
+import { isWebSocketConnected } from '../../reducers';
 
-import '../../scss/Definitions.scss';
+export /* istanbul ignore next */ function Pipelines(props) {
+  const { filters, intl, match, webSocketConnected } = props;
 
-export /* istanbul ignore next */ class Pipelines extends Component {
-  state = {
-    deleteError: null,
-    showDeleteModal: false,
-    toBeDeleted: []
-  };
+  const { selectedNamespace } = useSelectedNamespace();
+  const { namespace = selectedNamespace } = match.params;
 
-  componentDidMount() {
-    document.title = getTitle({ page: 'Pipelines' });
-    this.fetchData();
-  }
+  const [cancelSelection, setCancelSelection] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [toBeDeleted, setToBeDeleted] = useState([]);
 
-  componentDidUpdate(prevProps) {
-    const { filters, namespace, webSocketConnected } = this.props;
-    const {
-      filters: prevFilters,
-      webSocketConnected: prevWebSocketConnected
-    } = prevProps;
-    if (
-      namespace !== prevProps.namespace ||
-      (webSocketConnected && prevWebSocketConnected === false) ||
-      !isEqual(filters, prevFilters)
-    ) {
-      this.fetchData();
-    }
-  }
+  const isReadOnly = useIsReadOnly();
 
-  getError() {
-    const { error, intl } = this.props;
+  useTitleSync({ page: 'Pipelines' });
+
+  const { data: pipelines = [], error, isLoading, refetch } = usePipelines({
+    filters,
+    namespace
+  });
+
+  useWebSocketReconnected(refetch, webSocketConnected);
+
+  function getError() {
     if (error) {
       return {
         error,
@@ -87,10 +76,9 @@ export /* istanbul ignore next */ class Pipelines extends Component {
       };
     }
 
-    const { deleteError } = this.state;
     if (deleteError) {
       return {
-        clear: () => this.setState({ deleteError: null }),
+        clear: () => setDeleteError(null),
         error: deleteError
       };
     }
@@ -98,223 +86,195 @@ export /* istanbul ignore next */ class Pipelines extends Component {
     return null;
   }
 
-  closeDeleteModal = () => {
-    this.setState({
-      showDeleteModal: false,
-      toBeDeleted: []
-    });
-  };
+  function closeDeleteModal() {
+    setShowDeleteModal(false);
+    setToBeDeleted([]);
+  }
 
-  deletePipeline = pipeline => {
-    const { name, namespace } = pipeline.metadata;
-    deletePipeline({ name, namespace }).catch(error => {
-      error.response.text().then(text => {
-        const statusCode = error.response.status;
+  function handleDeletePipeline(pipeline) {
+    const { name, namespace: resourceNamespace } = pipeline.metadata;
+    deletePipeline({ name, namespace: resourceNamespace }).catch(err => {
+      err.response.text().then(text => {
+        const statusCode = err.response.status;
         let errorMessage = `error code ${statusCode}`;
         if (text) {
           errorMessage = `${text} (error code ${statusCode})`;
         }
-        this.setState({ deleteError: errorMessage });
+        setDeleteError(errorMessage);
       });
     });
-  };
-
-  handleDelete = async () => {
-    const { cancelSelection, toBeDeleted } = this.state;
-    const deletions = toBeDeleted.map(resource =>
-      this.deletePipeline(resource)
-    );
-    this.closeDeleteModal();
-    await Promise.all(deletions);
-    cancelSelection();
-  };
-
-  openDeleteModal = (selectedRows, cancelSelection) => {
-    const resourcesById = keyBy(this.props.pipelines, 'metadata.uid');
-    const toBeDeleted = selectedRows.map(({ id }) => resourcesById[id]);
-    this.setState({ showDeleteModal: true, toBeDeleted, cancelSelection });
-  };
-
-  fetchData() {
-    const { filters, namespace } = this.props;
-    this.props.fetchPipelines({ filters, namespace });
   }
 
-  render() {
-    const {
-      loading,
-      pipelines,
-      intl,
-      namespace: selectedNamespace
-    } = this.props;
-    const { showDeleteModal, toBeDeleted } = this.state;
+  async function handleDelete() {
+    const deletions = toBeDeleted.map(resource =>
+      handleDeletePipeline(resource)
+    );
+    closeDeleteModal();
+    await Promise.all(deletions);
+    cancelSelection();
+  }
 
-    const batchActionButtons = this.props.isReadOnly
-      ? []
-      : [
-          {
-            onClick: this.openDeleteModal,
-            text: intl.formatMessage({
+  function openDeleteModal(selectedRows, handleCancel) {
+    const resourcesById = keyBy(pipelines, 'metadata.uid');
+    const resourcesToBeDeleted = selectedRows.map(
+      ({ id }) => resourcesById[id]
+    );
+    setShowDeleteModal(true);
+    setToBeDeleted(resourcesToBeDeleted);
+    setCancelSelection(() => handleCancel);
+  }
+
+  const batchActionButtons = isReadOnly
+    ? []
+    : [
+        {
+          onClick: openDeleteModal,
+          text: intl.formatMessage({
+            id: 'dashboard.actions.deleteButton',
+            defaultMessage: 'Delete'
+          }),
+          icon: DeleteIcon
+        }
+      ];
+
+  const initialHeaders = [
+    {
+      key: 'name',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.name',
+        defaultMessage: 'Name'
+      })
+    },
+    {
+      key: 'namespace',
+      header: 'Namespace'
+    },
+    {
+      key: 'createdTime',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.createdTime',
+        defaultMessage: 'Created'
+      })
+    },
+    {
+      key: 'actions',
+      header: ''
+    }
+  ];
+
+  const pipelinesFormatted = pipelines.map(pipeline => ({
+    id: pipeline.metadata.uid,
+    name: (
+      <Link
+        component={CarbonLink}
+        to={urls.rawCRD.byNamespace({
+          namespace: pipeline.metadata.namespace,
+          type: 'pipelines',
+          name: pipeline.metadata.name
+        })}
+        title={pipeline.metadata.name}
+      >
+        {pipeline.metadata.name}
+      </Link>
+    ),
+    namespace: pipeline.metadata.namespace,
+    createdTime: (
+      <FormattedDate date={pipeline.metadata.creationTimestamp} relative />
+    ),
+    actions: (
+      <>
+        {!isReadOnly ? (
+          <Button
+            className="tkn--danger"
+            hasIconOnly
+            iconDescription={intl.formatMessage({
               id: 'dashboard.actions.deleteButton',
               defaultMessage: 'Delete'
-            }),
-            icon: DeleteIcon
-          }
-        ];
-
-    const initialHeaders = [
-      {
-        key: 'name',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.name',
-          defaultMessage: 'Name'
-        })
-      },
-      {
-        key: 'namespace',
-        header: 'Namespace'
-      },
-      {
-        key: 'createdTime',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.createdTime',
-          defaultMessage: 'Created'
-        })
-      },
-      {
-        key: 'actions',
-        header: ''
-      }
-    ];
-
-    const pipelinesFormatted = pipelines.map(pipeline => ({
-      id: pipeline.metadata.uid,
-      name: (
-        <Link
-          to={urls.rawCRD.byNamespace({
-            namespace: pipeline.metadata.namespace,
-            type: 'pipelines',
-            name: pipeline.metadata.name
-          })}
-          title={pipeline.metadata.name}
-        >
-          {pipeline.metadata.name}
-        </Link>
-      ),
-      namespace: pipeline.metadata.namespace,
-      createdTime: (
-        <FormattedDate date={pipeline.metadata.creationTimestamp} relative />
-      ),
-      actions: (
-        <>
-          {!this.props.isReadOnly ? (
-            <Button
-              className="tkn--danger"
-              hasIconOnly
-              iconDescription={intl.formatMessage({
-                id: 'dashboard.actions.deleteButton',
-                defaultMessage: 'Delete'
-              })}
-              kind="ghost"
-              onClick={() =>
-                this.openDeleteModal([{ id: pipeline.metadata.uid }], () => {})
-              }
-              renderIcon={DeleteIcon}
-              size="sm"
-              tooltipAlignment="center"
-              tooltipPosition="left"
-            />
-          ) : null}
-          <Button
-            as={Link}
-            hasIconOnly
-            iconDescription={intl.formatMessage(
-              {
-                id: 'dashboard.resourceList.viewRuns',
-                defaultMessage: 'View {kind} of {resource}'
-              },
-              { kind: 'PipelineRuns', resource: pipeline.metadata.name }
-            )}
-            kind="ghost"
-            renderIcon={RunsIcon}
-            size="sm"
-            to={urls.pipelineRuns.byPipeline({
-              namespace: pipeline.metadata.namespace,
-              pipelineName: pipeline.metadata.name
             })}
+            kind="ghost"
+            onClick={() =>
+              openDeleteModal([{ id: pipeline.metadata.uid }], () => {})
+            }
+            renderIcon={DeleteIcon}
+            size="sm"
             tooltipAlignment="center"
             tooltipPosition="left"
           />
-        </>
-      )
-    }));
-
-    return (
-      <ListPageLayout {...this.props} error={this.getError()} title="Pipelines">
-        <Table
-          batchActionButtons={batchActionButtons}
-          className="tkn--table--inline-actions"
-          headers={initialHeaders}
-          rows={pipelinesFormatted}
-          loading={loading && !pipelinesFormatted.length}
-          selectedNamespace={selectedNamespace}
-          emptyTextAllNamespaces={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.allNamespaces',
-              defaultMessage: 'No matching {kind} found'
-            },
-            { kind: 'Pipelines' }
-          )}
-          emptyTextSelectedNamespace={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.selectedNamespace',
-              defaultMessage:
-                'No matching {kind} found in namespace {selectedNamespace}'
-            },
-            { kind: 'Pipelines', selectedNamespace }
-          )}
-        />
-        {showDeleteModal ? (
-          <DeleteModal
-            kind="Pipelines"
-            onClose={this.closeDeleteModal}
-            onSubmit={this.handleDelete}
-            resources={toBeDeleted}
-            showNamespace={selectedNamespace === ALL_NAMESPACES}
-          />
         ) : null}
-      </ListPageLayout>
-    );
-  }
+        <Button
+          as={Link}
+          hasIconOnly
+          iconDescription={intl.formatMessage(
+            {
+              id: 'dashboard.resourceList.viewRuns',
+              defaultMessage: 'View {kind} of {resource}'
+            },
+            { kind: 'PipelineRuns', resource: pipeline.metadata.name }
+          )}
+          kind="ghost"
+          renderIcon={RunsIcon}
+          size="sm"
+          to={urls.pipelineRuns.byPipeline({
+            namespace: pipeline.metadata.namespace,
+            pipelineName: pipeline.metadata.name
+          })}
+          tooltipAlignment="center"
+          tooltipPosition="left"
+        />
+      </>
+    )
+  }));
+
+  return (
+    <ListPageLayout {...props} error={getError()} title="Pipelines">
+      <Table
+        batchActionButtons={batchActionButtons}
+        className="tkn--table--inline-actions"
+        headers={initialHeaders}
+        rows={pipelinesFormatted}
+        loading={isLoading}
+        selectedNamespace={namespace}
+        emptyTextAllNamespaces={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.allNamespaces',
+            defaultMessage: 'No matching {kind} found'
+          },
+          { kind: 'Pipelines' }
+        )}
+        emptyTextSelectedNamespace={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.selectedNamespace',
+            defaultMessage:
+              'No matching {kind} found in namespace {selectedNamespace}'
+          },
+          { kind: 'Pipelines', selectedNamespace: namespace }
+        )}
+      />
+      {showDeleteModal ? (
+        <DeleteModal
+          kind="Pipelines"
+          onClose={closeDeleteModal}
+          onSubmit={handleDelete}
+          resources={toBeDeleted}
+          showNamespace={namespace === ALL_NAMESPACES}
+        />
+      ) : null}
+    </ListPageLayout>
+  );
 }
 
 Pipelines.defaultProps = {
-  filters: [],
-  pipelines: []
+  filters: []
 };
 
 /* istanbul ignore next */
 function mapStateToProps(state, props) {
-  const { namespace: namespaceParam } = props.match.params;
-  const namespace = namespaceParam || getSelectedNamespace(state);
   const filters = getFilters(props.location);
 
   return {
-    error: getPipelinesErrorMessage(state),
     filters,
-    isReadOnly: isReadOnly(state),
-    loading: isFetchingPipelines(state),
-    namespace,
-    pipelines: getPipelines(state, { filters, namespace }),
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchPipelines
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(Pipelines));
+export default connect(mapStateToProps)(injectIntl(Pipelines));

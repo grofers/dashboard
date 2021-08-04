@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -21,8 +21,6 @@ import {
   Search,
   Tag
 } from 'carbon-components-react';
-
-import './LabelFilter.scss';
 
 function arrayUnique(arr) {
   return arr.filter((item, index) => arr.indexOf(item) >= index);
@@ -151,17 +149,16 @@ class LabelFilter extends Component {
         )}
         <Form onSubmit={this.handleAddFilter} autoComplete="on">
           <Search
-            placeHolderText={searchDescription}
+            placeholder={searchDescription}
             labelText={searchDescription}
             onChange={this.handleChange}
             value={currentFilterValue}
-            data-testid="filter-search-bar"
             name="filter-search"
           />
           <Button type="submit" className="tkn--visually-hidden">
             {intl.formatMessage({
               id: 'dashboard.labelFilter.addFilterButton',
-              defaultMessage: 'Add Filter'
+              defaultMessage: 'Add filter'
             })}
           </Button>
         </Form>

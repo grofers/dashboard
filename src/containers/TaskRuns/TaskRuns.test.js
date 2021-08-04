@@ -18,10 +18,10 @@ import thunk from 'redux-thunk';
 import configureStore from 'redux-mock-store';
 import { Route } from 'react-router-dom';
 import { urls } from '@tektoncd/dashboard-utils';
-import { renderWithRouter } from '@tektoncd/dashboard-components/src/utils/test';
 
-import * as API from '../../api/taskRuns';
-import * as selectors from '../../reducers';
+import { renderWithRouter } from '../../utils/test';
+import * as API from '../../api';
+import * as taskRunsAPI from '../../api/taskRuns';
 import * as store from '../../store';
 import TaskRunsContainer from './TaskRuns';
 
@@ -34,244 +34,61 @@ const namespacesTestStore = {
     isFetching: false
   }
 };
-const taskRunsTestStore = {
-  taskRuns: {
-    isFetching: false,
-    byId: {
-      'taskRunWithTwoLabels-id': {
-        status: {
-          startTime: '0'
-        },
-        metadata: {
-          name: 'taskRunWithTwoLabels',
-          namespace: 'namespace-1',
-          labels: {
-            foo: 'bar',
-            baz: 'bam'
-          },
-          uid: 'taskRunWithTwoLabels-id'
-        },
-        spec: {
-          taskRef: {
-            name: 'task-1'
-          }
-        }
+const taskRuns = [
+  {
+    status: {
+      startTime: '0'
+    },
+    metadata: {
+      name: 'taskRunWithTwoLabels',
+      namespace: 'namespace-1',
+      labels: {
+        foo: 'bar',
+        baz: 'bam'
       },
-      'taskRunWithSingleLabel-id': {
-        status: {
-          startTime: '1'
-        },
-        metadata: {
-          name: 'taskRunWithSingleLabel',
-          namespace: 'namespace-1',
-          uid: 'taskRunWithSingleLabel-id',
-          labels: {
-            foo: 'bar'
-          }
-        },
-        spec: {
-          taskSpec: {
-            steps: []
-          }
-        }
+      uid: 'taskRunWithTwoLabels-id'
+    },
+    spec: {
+      taskRef: {
+        name: 'task-1'
+      }
+    }
+  },
+  {
+    status: {
+      startTime: '1'
+    },
+    metadata: {
+      name: 'taskRunWithSingleLabel',
+      namespace: 'namespace-1',
+      uid: 'taskRunWithSingleLabel-id',
+      labels: {
+        foo: 'bar'
       }
     },
-    byNamespace: {
-      'namespace-1': {
-        taskRunWithTwoLabels: 'taskRunWithTwoLabels-id',
-        taskRunWithSingleLabel: 'taskRunWithSingleLabel-id'
+    spec: {
+      taskSpec: {
+        steps: []
       }
     }
   }
-};
-const serviceAccountsTestStore = {
-  serviceAccounts: {
-    byNamespace: {
-      'namespace-1': {
-        'service-account-1': 'id-service-account-1'
-      }
-    },
-    byId: {
-      'id-service-account-1': {
-        metadata: {
-          name: 'service-account-1',
-          namespace: 'namespace-1',
-          uid: 'id-service-account-1'
-        }
-      }
-    },
-    isFetching: false
-  }
-};
-const tasksTestStore = {
-  tasks: {
-    byNamespace: {
-      'namespace-1': {
-        'task-1': 'id-task-1'
-      }
-    },
-    byId: {
-      'id-task-1': {
-        metadata: {
-          name: 'task-1',
-          namespace: 'namespace-1',
-          uid: 'id-task-1'
-        },
-        spec: {
-          resources: [{ name: 'resource-1', type: 'type-1' }],
-          params: [
-            {
-              name: 'param-1',
-              description: 'description-1',
-              default: 'default-1'
-            },
-            { name: 'param-2' }
-          ]
-        }
-      }
-    },
-    isFetching: false
-  }
-};
+];
 
 const middleware = [thunk];
 const mockStore = configureStore(middleware);
 const testStore = {
   ...namespacesTestStore,
-  notifications: {},
-  properties: {},
-  ...taskRunsTestStore,
-  ...tasksTestStore,
-  ...serviceAccountsTestStore
+  notifications: {}
 };
 
 describe('TaskRuns container', () => {
   beforeEach(() => {
-    jest.spyOn(API, 'getTaskRuns').mockImplementation(() => []);
+    jest
+      .spyOn(taskRunsAPI, 'useTaskRuns')
+      .mockImplementation(() => ({ data: taskRuns }));
     jest
       .spyOn(store, 'getStore')
       .mockImplementation(() => mockStore(testStore));
-  });
-
-  it('taskRuns can be filtered on a single label filter', async () => {
-    const match = {
-      params: {},
-      url: urls.taskRuns.all()
-    };
-
-    const { queryByText, getByTestId, getByText } = renderWithRouter(
-      <Provider store={store.getStore()}>
-        <Route
-          path={urls.taskRuns.all()}
-          render={props => (
-            <TaskRunsContainer
-              {...props}
-              match={match}
-              error={null}
-              loading={false}
-              namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
-            />
-          )}
-        />
-      </Provider>,
-      { route: urls.taskRuns.all() }
-    );
-
-    const filterValue = 'baz:bam';
-    const filterInputField = getByTestId('filter-search-bar');
-    fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
-
-    expect(queryByText(filterValue)).toBeTruthy();
-    expect(queryByText('taskRunWithSingleLabel')).toBeFalsy();
-    expect(queryByText('taskRunWithTwoLabels')).toBeTruthy();
-  });
-
-  it('taskRuns can be filtered on multiple label filters', async () => {
-    const match = {
-      params: {},
-      url: ''
-    };
-
-    const { queryByText, getByTestId, getByText } = renderWithRouter(
-      <Provider store={store.getStore()}>
-        <Route
-          path={urls.taskRuns.all()}
-          render={props => (
-            <TaskRunsContainer
-              {...props}
-              match={match}
-              error={null}
-              loading={false}
-              namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
-            />
-          )}
-        />
-      </Provider>,
-      { route: urls.taskRuns.all() }
-    );
-
-    const firstFilterValue = 'foo:bar';
-    const secondFilterValue = 'baz:bam';
-    const filterInputField = getByTestId('filter-search-bar');
-    fireEvent.change(filterInputField, { target: { value: firstFilterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
-    fireEvent.change(filterInputField, {
-      target: { value: secondFilterValue }
-    });
-    fireEvent.submit(getByText(/Input a label filter/i));
-
-    expect(queryByText(firstFilterValue)).toBeTruthy();
-    expect(queryByText(secondFilterValue)).toBeTruthy();
-    expect(queryByText('taskRunWithSingleLabel')).toBeFalsy();
-    expect(queryByText('taskRunWithTwoLabels')).toBeTruthy();
-  });
-
-  it('taskRuns label filter can be deleted, rendering the correct taskRuns', async () => {
-    const match = {
-      params: {},
-      url: urls.taskRuns.all()
-    };
-
-    const { queryByText, getByTestId, getByText } = renderWithRouter(
-      <Provider store={store.getStore()}>
-        <Route
-          path={urls.taskRuns.all()}
-          render={props => (
-            <TaskRunsContainer
-              {...props}
-              match={match}
-              error={null}
-              loading={false}
-              namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
-            />
-          )}
-        />
-      </Provider>,
-      { route: urls.taskRuns.all() }
-    );
-
-    const filterValue = 'baz:bam';
-    const filterInputField = getByTestId('filter-search-bar');
-    fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
-
-    expect(queryByText(filterValue)).toBeTruthy();
-    expect(queryByText('taskRunWithSingleLabel')).toBeFalsy();
-    expect(queryByText('taskRunWithTwoLabels')).toBeTruthy();
-
-    fireEvent.click(getByText(filterValue));
-    await waitFor(() => getByText('taskRunWithSingleLabel'));
-    expect(queryByText(filterValue)).toBeFalsy();
-
-    expect(queryByText('taskRunWithSingleLabel')).toBeTruthy();
-    expect(queryByText('taskRunWithTwoLabels')).toBeTruthy();
   });
 
   it('Duplicate label filters are prevented', async () => {
@@ -280,7 +97,7 @@ describe('TaskRuns container', () => {
       url: urls.taskRuns.all()
     };
 
-    const { queryByText, getByTestId, getByText } = renderWithRouter(
+    const { queryByText, getByPlaceholderText, getByText } = renderWithRouter(
       <Provider store={store.getStore()}>
         <Route
           path={urls.taskRuns.all()}
@@ -291,8 +108,6 @@ describe('TaskRuns container', () => {
               error={null}
               loading={false}
               namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
             />
           )}
         />
@@ -301,7 +116,7 @@ describe('TaskRuns container', () => {
     );
 
     const filterValue = 'baz:bam';
-    const filterInputField = getByTestId('filter-search-bar');
+    const filterInputField = getByPlaceholderText(/Input a label filter/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
     fireEvent.submit(getByText(/Input a label filter/i));
 
@@ -318,7 +133,7 @@ describe('TaskRuns container', () => {
       url: urls.taskRuns.all()
     };
 
-    const { queryByText, getByTestId, getByText } = renderWithRouter(
+    const { queryByText, getByPlaceholderText, getByText } = renderWithRouter(
       <Provider store={store.getStore()}>
         <Route
           path={urls.taskRuns.all()}
@@ -329,8 +144,6 @@ describe('TaskRuns container', () => {
               error={null}
               loading={false}
               namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
             />
           )}
         />
@@ -339,7 +152,7 @@ describe('TaskRuns container', () => {
     );
 
     const filterValue = 'baz=bam';
-    const filterInputField = getByTestId('filter-search-bar');
+    const filterInputField = getByPlaceholderText(/Input a label filter/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
     fireEvent.submit(getByText(/Input a label filter/i));
 
@@ -351,7 +164,7 @@ describe('TaskRuns container', () => {
   });
 
   it('TaskRun actions are available when not in read-only mode', async () => {
-    jest.spyOn(selectors, 'isReadOnly').mockImplementation(() => false);
+    jest.spyOn(API, 'useIsReadOnly').mockImplementation(() => false);
 
     const match = {
       params: {},
@@ -369,8 +182,6 @@ describe('TaskRuns container', () => {
               error={null}
               loading={false}
               namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
             />
           )}
         />
@@ -383,14 +194,18 @@ describe('TaskRuns container', () => {
   });
 
   it('TaskRun actions are not available when in read-only mode', async () => {
-    jest.spyOn(selectors, 'isReadOnly').mockImplementation(() => true);
+    jest.spyOn(API, 'useIsReadOnly').mockImplementation(() => true);
 
     const match = {
       params: {},
       url: urls.taskRuns.all()
     };
 
-    const { getByText, queryAllByTitle } = renderWithRouter(
+    const {
+      getByText,
+      queryAllByLabelText,
+      queryAllByTitle
+    } = renderWithRouter(
       <Provider store={store.getStore()}>
         <Route
           path={urls.taskRuns.all()}
@@ -401,8 +216,6 @@ describe('TaskRuns container', () => {
               error={null}
               loading={false}
               namespace="namespace-1"
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
             />
           )}
         />
@@ -412,34 +225,27 @@ describe('TaskRuns container', () => {
 
     await waitFor(() => getByText('taskRunWithTwoLabels'));
     expect(queryAllByTitle(/actions/i)[0]).toBeFalsy();
+    expect(queryAllByLabelText('Select row').length).toBe(0);
   });
 
   it('handles rerun event in TaskRuns page', async () => {
     const mockTestStore = mockStore(testStore);
-    jest.spyOn(selectors, 'isReadOnly').mockImplementation(() => false);
-    jest.spyOn(API, 'rerunTaskRun').mockImplementation(() => []);
-    const { getAllByTestId, getByText } = renderWithRouter(
+    jest.spyOn(API, 'useIsReadOnly').mockImplementation(() => false);
+    jest.spyOn(taskRunsAPI, 'rerunTaskRun').mockImplementation(() => []);
+    const { getAllByTitle, getByText } = renderWithRouter(
       <Provider store={mockTestStore}>
         <Route
           path={urls.taskRuns.all()}
-          render={props => (
-            <TaskRunsContainer
-              {...props}
-              fetchTaskRuns={() => Promise.resolve()}
-              taskRuns={taskRunsTestStore.taskRuns.byId}
-            />
-          )}
+          render={props => <TaskRunsContainer {...props} />}
         />
       </Provider>,
       { route: urls.taskRuns.all() }
     );
     await waitFor(() => getByText(/taskRunWithTwoLabels/i));
-    fireEvent.click(await waitFor(() => getAllByTestId('overflowmenu')[0]));
+    fireEvent.click(await waitFor(() => getAllByTitle('Actions')[0]));
     await waitFor(() => getByText(/Rerun/i));
     fireEvent.click(getByText('Rerun'));
     expect(API.rerunTaskRun).toHaveBeenCalledTimes(1);
-    expect(API.rerunTaskRun).toHaveBeenCalledWith(
-      taskRunsTestStore.taskRuns.byId['taskRunWithSingleLabel-id']
-    );
+    expect(API.rerunTaskRun).toHaveBeenCalledWith(taskRuns[0]);
   });
 });

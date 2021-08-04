@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,13 +11,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-@import '~carbon-components/scss/globals/scss/vars';
-
 .bx--header ~ {
   nav.bx--side-nav {
     background-color: $gray-100;
     border-color: $gray-80;
     color: $gray-10;
+
+    .bx--side-nav__items {
+      display: flex;
+      flex-direction: column;
+
+      .bx--side-nav__item {
+        flex-shrink: 0;
+      }
+
+      .bx--side-nav__item.bx--side-nav__item--icon
+        + .bx--side-nav__item:not(.bx--side-nav__item--icon) {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        justify-content: flex-end;
+      }
+
+      .bx--side-nav__item:last-child {
+        margin-bottom: 1rem;
+      }
+    }
 
     .bx--side-nav__icon {
       &:not(.bx--side-nav__submenu-chevron) {

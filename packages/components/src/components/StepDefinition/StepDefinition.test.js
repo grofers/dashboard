@@ -12,11 +12,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import { renderWithIntl, renderWithRouter } from '../../utils/test';
+import { render } from '../../utils/test';
 import StepDefinition from './StepDefinition';
 
 it('StepDefinition renders default content', () => {
-  const { queryByText } = renderWithIntl(<StepDefinition taskRun={{}} />);
+  const { queryByText } = render(<StepDefinition taskRun={{}} />);
   expect(queryByText(/Step definition not available/i)).toBeTruthy();
 });
 
@@ -26,66 +26,12 @@ it('StepDefinition renders the provided content', () => {
     command: ['docker'],
     name: 'test name'
   };
-  const { queryByText } = renderWithIntl(
+  const { queryByText } = render(
     <StepDefinition definition={definition} taskRun={{}} />
   );
 
   expect(queryByText(/--someArg/)).toBeTruthy();
   expect(queryByText(/test name/)).toBeTruthy();
-  expect(queryByText(/Input Resources/)).toBeNull();
-  expect(queryByText(/Output Resources/)).toBeNull();
-});
-
-it('StepDefinition renders the provided content with resources', () => {
-  const inputResourceName = 'testInputResource';
-  const outputResourceName = 'testOutputResource';
-  const taskRun = {
-    metadata: {
-      namespace: 'test',
-      uid: '386bd486-355a-422e-ad82-573a55699053'
-    },
-    spec: {
-      resources: {
-        inputs: [
-          {
-            name: 'referencedInputResource',
-            resourceRef: {
-              name: inputResourceName
-            }
-          }
-        ],
-        outputs: [
-          {
-            name: 'referencedOutputResource',
-            resourceRef: {
-              name: outputResourceName
-            }
-          },
-          {
-            name: 'inlineOutputResource',
-            resourceSpec: {
-              name: 'testing',
-              params: 'inlineResourceParams'
-            }
-          }
-        ]
-      }
-    }
-  };
-  const definition = {
-    args: ['--someArg'],
-    command: ['docker'],
-    name: 'test name'
-  };
-  const { queryByText } = renderWithRouter(
-    <StepDefinition definition={definition} showIO taskRun={taskRun} />
-  );
-
-  expect(queryByText(/--someArg/)).toBeTruthy();
-  expect(queryByText(/test name/)).toBeTruthy();
-  expect(queryByText(/Input Resources/)).toBeTruthy();
-  expect(queryByText(/Output Resources/)).toBeTruthy();
-  expect(queryByText(inputResourceName)).toBeTruthy();
-  expect(queryByText(outputResourceName)).toBeTruthy();
-  expect(queryByText(/inlineResourceParams/)).toBeTruthy();
+  expect(queryByText(/Input resources/)).toBeNull();
+  expect(queryByText(/Output resources/)).toBeNull();
 });

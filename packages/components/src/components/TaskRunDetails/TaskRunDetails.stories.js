@@ -17,7 +17,21 @@ import TaskRunDetails from './TaskRunDetails';
 
 const paramKey = 'k';
 const paramValue = 'v';
-const params = [{ name: paramKey, value: paramValue }];
+const params = [
+  {
+    name: paramKey,
+    value: paramValue
+  }
+];
+
+const resources = {
+  inputs: [
+    { name: 'input-resource', resourceRef: { name: 'input-resource-ref' } }
+  ],
+  outputs: [
+    { name: 'output-resource', resourceRef: { name: 'output-resource-ref' } }
+  ]
+};
 
 export default {
   component: TaskRunDetails,
@@ -32,15 +46,35 @@ export default {
 export const Base = () => (
   <TaskRunDetails
     taskRun={{
-      metadata: { name: 'my-task' },
+      metadata: { name: 'my-task', namespace: 'my-namespace' },
       spec: {
-        params
+        params,
+        resources
       },
       status: {
         completionTime: '2021-03-03T15:25:34Z',
         podName: 'my-task-h7d6j-pod-pdtb7',
         startTime: '2021-03-03T15:25:27Z',
         taskResults: [{ name: 'message', value: 'hello' }]
+      }
+    }}
+    showIO
+  />
+);
+
+export const Pod = () => (
+  <TaskRunDetails
+    pod={{
+      events: '<Pod events go here>',
+      resource: '<Pod resource goes here>'
+    }}
+    taskRun={{
+      metadata: { name: 'my-task' },
+      spec: {},
+      status: {
+        completionTime: '2021-03-03T15:25:34Z',
+        podName: 'my-task-h7d6j-pod-pdtb7',
+        startTime: '2021-03-03T15:25:27Z'
       }
     }}
   />

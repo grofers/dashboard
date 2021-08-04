@@ -12,7 +12,6 @@ limitations under the License.
 */
 
 import React from 'react';
-import { connect } from 'react-redux';
 import { generatePath } from 'react-router-dom';
 import { injectIntl } from 'react-intl';
 import { InlineNotification } from 'carbon-components-react';
@@ -22,11 +21,8 @@ import {
   paths
 } from '@tektoncd/dashboard-utils';
 
-import { selectNamespace as selectNamespaceAction } from '../../actions/namespaces';
-import { getSelectedNamespace, getTenantNamespace } from '../../reducers';
 import { LabelFilter, NamespacesDropdown } from '..';
-
-import './ListPageLayout.scss';
+import { useSelectedNamespace, useTenantNamespace } from '../../api';
 
 export const ListPageLayout = ({
   children,
@@ -37,11 +33,14 @@ export const ListPageLayout = ({
   intl,
   location,
   match,
-  namespace,
-  selectNamespace,
-  tenantNamespace,
   title
 }) => {
+  const tenantNamespace = useTenantNamespace();
+  const {
+    selectedNamespace: namespace,
+    selectNamespace
+  } = useSelectedNamespace();
+
   function setPath(path) {
     history.push(`${path}${location.search}`);
   }
@@ -71,7 +70,7 @@ export const ListPageLayout = ({
   return (
     <>
       <div className="tkn--list-page--header">
-        <h1>{title}</h1>
+        <h1 id="main-content-header">{title}</h1>
 
         {!(hideNamespacesDropdown || tenantNamespace) && (
           <NamespacesDropdown
@@ -95,7 +94,7 @@ export const ListPageLayout = ({
         <InlineNotification
           iconDescription={intl.formatMessage({
             id: 'dashboard.notification.clear',
-            defaultMessage: 'Clear Notification'
+            defaultMessage: 'Clear notification'
           })}
           kind="error"
           lowContrast
@@ -115,17 +114,4 @@ export const ListPageLayout = ({
   );
 };
 
-/* istanbul ignore next */
-const mapStateToProps = state => ({
-  namespace: getSelectedNamespace(state),
-  tenantNamespace: getTenantNamespace(state)
-});
-
-const mapDispatchToProps = {
-  selectNamespace: selectNamespaceAction
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(ListPageLayout));
+export default injectIntl(ListPageLayout);

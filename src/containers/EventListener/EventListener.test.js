@@ -14,8 +14,9 @@ limitations under the License.
 import React from 'react';
 import { waitFor } from '@testing-library/react';
 import { createIntl } from 'react-intl';
-import { renderWithRouter } from '@tektoncd/dashboard-components/src/utils/test';
 
+import * as API from '../../api/eventListeners';
+import { renderWithRouter } from '../../utils/test';
 import { EventListenerContainer } from './EventListener';
 
 const intl = createIntl({
@@ -26,12 +27,13 @@ const intl = createIntl({
 /* Displaying of Trigger info is tested in the component test */
 
 const eventListenerName = 'tekton-webhooks-eventlistener';
+const namespace = 'tekton-pipelines';
 const fakeEventListenerWithLabels = {
   apiVersion: 'triggers.tekton.dev/v1alpha1',
   kind: 'EventListener',
   metadata: {
     name: eventListenerName,
-    namespace: 'tekton-pipelines',
+    namespace,
     labels: {
       foo: 'bar',
       bar: 'baz'
@@ -124,18 +126,15 @@ const fakeEventListenerWithLabels = {
 };
 
 const match = {
-  params: { eventListenerName }
+  params: { eventListenerName, namespace }
 };
 
 it('EventListener displays with formatted labels', async () => {
+  jest
+    .spyOn(API, 'useEventListener')
+    .mockImplementation(() => ({ data: fakeEventListenerWithLabels }));
   const { queryByText, getByText } = renderWithRouter(
-    <EventListenerContainer
-      intl={intl}
-      match={match}
-      error={null}
-      fetchEventListener={() => Promise.resolve(fakeEventListenerWithLabels)}
-      eventListener={fakeEventListenerWithLabels}
-    />
+    <EventListenerContainer intl={intl} match={match} />
   );
 
   await waitFor(() => getByText(eventListenerName));
@@ -146,7 +145,7 @@ it('EventListener displays with formatted labels', async () => {
   expect(queryByText(/bar: baz/i)).toBeTruthy();
   expect(queryByText('ServiceAccount:')).toBeTruthy();
   expect(queryByText(/my-serviceaccount/i)).toBeTruthy();
-  expect(queryByText(/Service Type/i)).toBeTruthy();
+  expect(queryByText(/Service type/i)).toBeTruthy();
   expect(queryByText(/NodePort/i)).toBeTruthy();
   // Check Trigger 0
   expect(queryByText(/my-trigger-0/i)).toBeTruthy();
@@ -170,14 +169,11 @@ it('EventListener handles no serviceAccountName', async () => {
       serviceAccountName: undefined
     }
   };
+  jest
+    .spyOn(API, 'useEventListener')
+    .mockImplementation(() => ({ data: eventListener }));
   const { queryByText, getByText } = renderWithRouter(
-    <EventListenerContainer
-      intl={intl}
-      match={match}
-      error={null}
-      fetchEventListener={() => Promise.resolve(eventListener)}
-      eventListener={eventListener}
-    />
+    <EventListenerContainer intl={intl} match={match} />
   );
 
   await waitFor(() => getByText(eventListenerName));
@@ -192,18 +188,15 @@ it('EventListener handles no service type', async () => {
       serviceType: undefined
     }
   };
+  jest
+    .spyOn(API, 'useEventListener')
+    .mockImplementation(() => ({ data: eventListener }));
   const { queryByText, getByText } = renderWithRouter(
-    <EventListenerContainer
-      intl={intl}
-      match={match}
-      error={null}
-      fetchEventListener={() => Promise.resolve(eventListener)}
-      eventListener={eventListener}
-    />
+    <EventListenerContainer intl={intl} match={match} />
   );
 
   await waitFor(() => getByText(eventListenerName));
-  expect(queryByText(/Service Type/i)).toBeFalsy();
+  expect(queryByText(/Service type/i)).toBeFalsy();
 });
 
 it('EventListener handles no triggers', async () => {
@@ -214,14 +207,11 @@ it('EventListener handles no triggers', async () => {
       triggers: []
     }
   };
+  jest
+    .spyOn(API, 'useEventListener')
+    .mockImplementation(() => ({ data: eventListener }));
   const { queryByText, getByText } = renderWithRouter(
-    <EventListenerContainer
-      intl={intl}
-      match={match}
-      error={null}
-      fetchEventListener={() => Promise.resolve(eventListener)}
-      eventListener={eventListener}
-    />
+    <EventListenerContainer intl={intl} match={match} />
   );
 
   await waitFor(() => getByText(eventListenerName));

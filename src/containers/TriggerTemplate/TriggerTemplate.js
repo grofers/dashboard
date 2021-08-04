@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Component } from 'react';
+import React from 'react';
 import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import { injectIntl } from 'react-intl';
@@ -21,19 +21,14 @@ import {
   ResourceDetails,
   ViewYAML
 } from '@tektoncd/dashboard-components';
-import { getTitle } from '@tektoncd/dashboard-utils';
 import {
-  getSelectedNamespace,
-  getTriggerTemplate,
-  getTriggerTemplatesErrorMessage,
-  isFetchingTriggerTemplates,
-  isWebSocketConnected
-} from '../../reducers';
+  useTitleSync,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
+
+import { isWebSocketConnected } from '../../reducers';
+import { useSelectedNamespace, useTriggerTemplate } from '../../api';
 import { getViewChangeHandler } from '../../utils';
-
-import { fetchTriggerTemplate } from '../../actions/triggerTemplates';
-
-import '../../scss/Triggers.scss';
 
 const {
   Table,
@@ -48,41 +43,28 @@ const {
   TableRow
 } = DataTable;
 
-export /* istanbul ignore next */ class TriggerTemplateContainer extends Component {
-  componentDidMount() {
-    const { match } = this.props;
-    const { triggerTemplateName: resourceName } = match.params;
-    document.title = getTitle({
-      page: 'TriggerTemplate',
-      resourceName
-    });
-    this.fetchData();
-  }
+export /* istanbul ignore next */ function TriggerTemplateContainer(props) {
+  const { intl, match, view, webSocketConnected } = props;
+  const { namespace, triggerTemplateName: resourceName } = match.params;
 
-  componentDidUpdate(prevProps) {
-    const { match, webSocketConnected } = this.props;
-    const { namespace, triggerTemplateName } = match.params;
-    const {
-      match: prevMatch,
-      webSocketConnected: prevWebSocketConnected
-    } = prevProps;
-    const {
-      namespace: prevNamespace,
-      triggerTemplateName: prevTriggerTemplateName
-    } = prevMatch.params;
+  const { selectedNamespace: defaultNamespace } = useSelectedNamespace();
+  const selectedNamespace = namespace || defaultNamespace;
 
-    if (
-      namespace !== prevNamespace ||
-      triggerTemplateName !== prevTriggerTemplateName ||
-      (webSocketConnected && prevWebSocketConnected === false)
-    ) {
-      this.fetchData();
-    }
-  }
+  useTitleSync({
+    page: 'TriggerTemplate',
+    resourceName
+  });
 
-  getContent() {
-    const { intl, selectedNamespace, triggerTemplate } = this.props;
+  const {
+    data: triggerTemplate,
+    error,
+    isFetching,
+    refetch
+  } = useTriggerTemplate({ name: resourceName, namespace });
 
+  useWebSocketReconnected(refetch, webSocketConnected);
+
+  function getContent() {
     if (!triggerTemplate) {
       return null;
     }
@@ -179,10 +161,9 @@ export /* istanbul ignore next */ class TriggerTemplateContainer extends Compone
                 getTableProps
               }) => (
                 <TableContainer
-                  data-testid="resourcetemplatestable"
                   title={intl.formatMessage({
                     id: 'dashboard.triggerTemplate.resourceTemplates',
-                    defaultMessage: 'Resource Templates'
+                    defaultMessage: 'Resource templates'
                   })}
                 >
                   <Table {...getTableProps()}>
@@ -227,27 +208,17 @@ export /* istanbul ignore next */ class TriggerTemplateContainer extends Compone
     );
   }
 
-  fetchData() {
-    const { match } = this.props;
-    const { namespace, triggerTemplateName } = match.params;
-    this.props.fetchTriggerTemplate({ name: triggerTemplateName, namespace });
-  }
-
-  render() {
-    const { error, loading, triggerTemplate, view } = this.props;
-
-    return (
-      <ResourceDetails
-        error={error}
-        loading={loading}
-        onViewChange={getViewChangeHandler(this.props)}
-        resource={triggerTemplate}
-        view={view}
-      >
-        {this.getContent()}
-      </ResourceDetails>
-    );
-  }
+  return (
+    <ResourceDetails
+      error={error}
+      loading={isFetching}
+      onViewChange={getViewChangeHandler(props)}
+      resource={triggerTemplate}
+      view={view}
+    >
+      {getContent()}
+    </ResourceDetails>
+  );
 }
 
 TriggerTemplateContainer.propTypes = {
@@ -260,32 +231,15 @@ TriggerTemplateContainer.propTypes = {
 
 /* istanbul ignore next */
 function mapStateToProps(state, ownProps) {
-  const { location, match } = ownProps;
-  const { namespace: namespaceParam, triggerTemplateName } = match.params;
+  const { location } = ownProps;
 
   const queryParams = new URLSearchParams(location.search);
   const view = queryParams.get('view');
 
-  const namespace = namespaceParam || getSelectedNamespace(state);
-  const triggerTemplate = getTriggerTemplate(state, {
-    name: triggerTemplateName,
-    namespace
-  });
   return {
-    error: getTriggerTemplatesErrorMessage(state),
-    loading: isFetchingTriggerTemplates(state),
-    selectedNamespace: namespace,
-    triggerTemplate,
     view,
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchTriggerTemplate
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(TriggerTemplateContainer));
+export default connect(mapStateToProps)(injectIntl(TriggerTemplateContainer));

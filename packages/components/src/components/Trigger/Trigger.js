@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,21 +11,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { injectIntl } from 'react-intl';
 import React from 'react';
-import { urls } from '@tektoncd/dashboard-utils';
+import { injectIntl } from 'react-intl';
 import { Link } from 'react-router-dom';
 import {
   Accordion,
   AccordionItem,
+  Link as CarbonLink,
   ListItem,
   UnorderedList
 } from 'carbon-components-react';
+import { urls } from '@tektoncd/dashboard-utils';
 import { Table, ViewYAML } from '@tektoncd/dashboard-components';
 
-import './Trigger.scss';
-
-const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
+const Trigger = ({ intl, namespace, trigger }) => {
   const tableHeaders = [
     {
       key: 'name',
@@ -43,13 +42,18 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
     }
   ];
 
-  const triggerTemplateName = trigger.template.ref || trigger.template.name;
+  const { bindings, interceptors, template } = trigger.spec || trigger;
+  const triggerTemplateName = template.ref || template.name;
+  // we deliberately don't get the name from a Trigger resource here
+  // as it will already have a heading on the page so we only want to display
+  // a header in this component when it's for a trigger in an EventListener
+  const triggerName = trigger.name;
 
   return (
     <div>
-      <h3>Trigger: {trigger.name}</h3>
+      {triggerName && <h3>Trigger: {triggerName}</h3>}
       <div className="tkn--trigger-details">
-        {trigger.bindings && trigger.bindings.length !== 0 && (
+        {bindings && bindings.length !== 0 && (
           <div className="tkn--trigger-resourcelinks">
             <span className="tkn--trigger-resourcekind">
               {intl.formatMessage({
@@ -58,18 +62,19 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
               })}
             </span>
             <UnorderedList>
-              {trigger.bindings.map(binding => (
+              {bindings.map(binding => (
                 <ListItem key={binding.ref || binding.name}>
                   {binding.ref ? (
                     <Link
                       className="tkn--trigger-resourcelink"
+                      component={CarbonLink}
                       to={
                         binding.kind === 'ClusterTriggerBinding'
                           ? urls.clusterTriggerBindings.byName({
                               clusterTriggerBindingName: binding.ref
                             })
                           : urls.triggerBindings.byName({
-                              namespace: eventListenerNamespace,
+                              namespace,
                               triggerBindingName: binding.ref
                             })
                       }
@@ -92,13 +97,14 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
             })}
           </span>
 
-          {trigger.template.spec ? (
-            <ViewYAML dark resource={trigger.template} />
+          {template.spec ? (
+            <ViewYAML dark resource={template} />
           ) : (
             <Link
               className="tkn--trigger-resourcelink"
+              component={CarbonLink}
               to={urls.triggerTemplates.byName({
-                namespace: eventListenerNamespace,
+                namespace,
                 triggerTemplateName
               })}
             >
@@ -108,7 +114,7 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
         </div>
       </div>
 
-      {trigger.interceptors && trigger.interceptors.length !== 0 && (
+      {interceptors && interceptors.length !== 0 && (
         <div className="tkn--trigger-interceptors">
           <span className="tkn--trigger-resourcekind">
             {intl.formatMessage({
@@ -120,7 +126,7 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
             className="tkn--trigger-interceptors-accordion"
             title="Interceptors"
           >
-            {trigger.interceptors.map((interceptor, index) => {
+            {interceptors.map((interceptor, index) => {
               let interceptorType;
               let content;
               const namespaceText = intl.formatMessage({
@@ -309,9 +315,24 @@ const Trigger = ({ intl, eventListenerNamespace, trigger }) => {
                     />
                   </>
                 );
+              } else if (interceptor.ref) {
+                interceptorType = 'ClusterInterceptor';
+                const clusterInterceptorName = interceptor.ref.name;
+                content = (
+                  <Link
+                    component={CarbonLink}
+                    to={urls.clusterInterceptors.byName({
+                      clusterInterceptorName
+                    })}
+                    title={clusterInterceptorName}
+                  >
+                    {clusterInterceptorName}
+                  </Link>
+                );
               } else {
                 return null;
               }
+
               const title = intl.formatMessage(
                 {
                   id: 'dashboard.triggerDetails.interceptorTitle',

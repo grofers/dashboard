@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -22,7 +22,12 @@ import {
   SkipToContent
 } from 'carbon-components-react';
 
-import './Header.scss';
+/* istanbul ignore next */
+function skipToContentClick(event) {
+  event.preventDefault();
+  window.scrollTo(0, 0);
+  document.getElementById('main-content').focus();
+}
 
 function Header({
   intl,
@@ -32,7 +37,7 @@ function Header({
 }) {
   return (
     <CarbonHeader aria-label="Tekton Dashboard" className="tkn--header">
-      <SkipToContent>
+      <SkipToContent href="#" onClick={skipToContentClick}>
         {intl.formatMessage({
           id: 'dashboard.skipToContent',
           defaultMessage: 'Skip to main content'
@@ -55,9 +60,7 @@ function Header({
           onClick={onHeaderMenuButtonClick}
         />
       )}
-      <HeaderName href="/" prefix="Tekton">
-        Dashboard
-      </HeaderName>
+      <HeaderName prefix="Tekton">Dashboard</HeaderName>
       <HeaderGlobalBar>{logoutButton}</HeaderGlobalBar>
     </CarbonHeader>
   );

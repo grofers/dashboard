@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,6 +16,7 @@ import { getStatus } from './status';
 
 export { default as buildGraphData } from './buildGraphData';
 export * from './constants';
+export * from './hooks';
 export { paths, urls } from './router';
 export { getStatus } from './status';
 
@@ -42,11 +43,6 @@ export function getErrorMessage(error) {
   return (
     error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))
   );
-}
-
-export function getTitle({ page, resourceName }) {
-  const pageTitle = page + (resourceName ? ` - ${resourceName}` : '');
-  return `Tekton Dashboard | ${pageTitle}`;
 }
 
 export function getStepDefinition({ selectedStepId, task, taskRun }) {
@@ -103,6 +99,14 @@ export function getStepStatusReason(step) {
     status = 'waiting';
   }
   return { reason, status };
+}
+
+export function isPending(reason, status) {
+  return (
+    !status ||
+    (status === 'Unknown' &&
+      (reason === 'Pending' || reason === 'PipelineRunPending'))
+  );
 }
 
 export function isRunning(reason, status) {
@@ -242,7 +246,7 @@ export function runMatchesStatusFilter({ run, statusFilter }) {
     case 'running':
       return isRunning(reason, status);
     case 'pending':
-      return !status || (status === 'Unknown' && reason === 'Pending');
+      return isPending(reason, status);
     case 'failed':
       return (
         (status === 'False' &&

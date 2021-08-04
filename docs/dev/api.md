@@ -5,16 +5,6 @@ The backend API provides the following endpoints:
 
 __GET endpoints__
 
-__Extensions__
-```
-GET /v1/extensions
-```
-
-- Get all extensions in the given namespace
-- Returns HTTP code 500 if an error occurred getting the extensions
-- Returns HTTP code 200 and the given extensions in the given namespace if found, 
-  otherwise an empty list is returned
-
 __Dashboard Properties__
 ```
 GET /v1/properties
@@ -27,12 +17,12 @@ Example payload response is formatted as so:
 
 ```
 {
- "DashboardNamespace": "tekton-pipelines",
- "DashboardVersion": "devel",
- "PipelineNamespace": "tekton-pipelines",
- "PipelineVersion": "v0.10.0",
- "TriggersNamespace": "tekton-pipelines",
- "TriggersVersion": "v0.3.1",
- "ReadOnly": true
+ "dashboardNamespace": "tekton-pipelines",
+ "dashboardVersion": "devel",
+ "isReadOnly": true,
+ "pipelinesNamespace": "tekton-pipelines",
+ "pipelinesVersion": "v0.10.0",
+ "triggersNamespace": "tekton-pipelines",
+ "triggersVersion": "v0.3.1"
 }
 ```

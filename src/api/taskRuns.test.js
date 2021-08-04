@@ -12,24 +12,23 @@ limitations under the License.
 */
 
 import fetchMock from 'fetch-mock';
-import { labels as labelConstants } from '@tektoncd/dashboard-utils';
 
 import * as API from './taskRuns';
+import * as utils from './utils';
 
 it('cancelTaskRun', () => {
   const name = 'foo';
   const namespace = 'foospace';
-  const data = { fake: 'taskRun', spec: { status: 'running' } };
-  fetchMock.get(/taskruns/, Promise.resolve(data));
-  const payload = {
-    fake: 'taskRun',
-    spec: { status: 'TaskRunCancelled' }
-  };
-  fetchMock.put(`end:${name}`, 204);
-  return API.cancelTaskRun({ name, namespace }).then(() => {
+  const returnedTaskRun = { fake: 'taskRun' };
+  const payload = [
+    { op: 'replace', path: '/spec/status', value: 'TaskRunCancelled' }
+  ];
+  fetchMock.patch(`end:${name}`, returnedTaskRun);
+  return API.cancelTaskRun({ name, namespace }).then(response => {
     expect(fetchMock.lastOptions()).toMatchObject({
       body: JSON.stringify(payload)
     });
+    expect(response).toEqual(returnedTaskRun);
     fetchMock.restore();
   });
 });
@@ -62,7 +61,6 @@ it('createTaskRun has correct metadata', () => {
     expect(sentMetadata.name).toMatch('fake-timestamp'); // include timestamp
     expect(sentMetadata).toHaveProperty('namespace', namespace);
     expect(sentMetadata.labels).toHaveProperty('app', 'fake-app');
-    expect(sentMetadata.labels).toHaveProperty([labelConstants.TASK], taskName);
     fetchMock.restore();
     mockDateNow.mockRestore();
   });
@@ -199,6 +197,40 @@ it('getTaskRuns With Query Params', () => {
     expect(taskRuns).toEqual(data.items);
     fetchMock.restore();
   });
+});
+
+it('useTaskRuns', () => {
+  const query = { fake: 'query' };
+  const params = { fake: 'params' };
+  jest.spyOn(utils, 'useCollection').mockImplementation(() => query);
+  expect(API.useTaskRuns(params)).toEqual(query);
+  expect(utils.useCollection).toHaveBeenCalledWith(
+    'TaskRun',
+    API.getTaskRuns,
+    params
+  );
+});
+
+it('useTaskRun', () => {
+  const query = { fake: 'query' };
+  const params = { fake: 'params' };
+  jest.spyOn(utils, 'useResource').mockImplementation(() => query);
+  expect(API.useTaskRun(params)).toEqual(query);
+  expect(utils.useResource).toHaveBeenCalledWith(
+    'TaskRun',
+    API.getTaskRun,
+    params,
+    undefined
+  );
+
+  const queryConfig = { fake: 'queryConfig' };
+  API.useTaskRun(params, queryConfig);
+  expect(utils.useResource).toHaveBeenCalledWith(
+    'TaskRun',
+    API.getTaskRun,
+    params,
+    queryConfig
+  );
 });
 
 it('rerunTaskRun', () => {

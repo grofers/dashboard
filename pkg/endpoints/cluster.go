@@ -14,50 +14,29 @@ limitations under the License.
 package endpoints
 
 import (
-	"errors"
+	"encoding/json"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
-
-	restful "github.com/emicklei/go-restful"
-	"github.com/tektoncd/dashboard/pkg/utils"
 )
 
 // Properties : properties we want to be able to retrieve via REST
 type Properties struct {
-	DashboardNamespace string `json:"DashboardNamespace"`
-	DashboardVersion   string `json:"DashboardVersion"`
-	PipelineNamespace  string `json:"PipelineNamespace"`
-	PipelineVersion    string `json:"PipelineVersion"`
-	TriggersNamespace  string `json:"TriggersNamespace,omitempty"`
-	TriggersVersion    string `json:"TriggersVersion,omitempty"`
-	ReadOnly           bool   `json:"ReadOnly"`
-	LogoutURL          string `json:"LogoutURL,omitempty"`
-	TenantNamespace    string `json:"TenantNamespace,omitempty"`
-	StreamLogs         bool   `json:"StreamLogs"`
-	ExternalLogsURL    string `json:"ExternalLogsURL"`
-}
-
-// ProxyRequest does as the name suggests: proxies requests and logs what's going on
-func (r Resource) ProxyRequest(request *restful.Request, response *restful.Response) {
-	parsedURL, err := url.Parse(request.Request.URL.String())
-	if err != nil {
-		utils.RespondError(response, err, http.StatusNotFound)
-		return
-	}
-
-	uri := request.PathParameter("subpath") + "?" + parsedURL.RawQuery
-
-	if statusCode, err := utils.Proxy(request.Request, response, r.Config.Host+"/"+uri, r.HttpClient); err != nil {
-		utils.RespondError(response, err, statusCode)
-	}
+	DashboardNamespace string `json:"dashboardNamespace"`
+	DashboardVersion   string `json:"dashboardVersion"`
+	ExternalLogsURL    string `json:"externalLogsURL"`
+	LogoutURL          string `json:"logoutURL,omitempty"`
+	PipelineNamespace  string `json:"pipelinesNamespace"`
+	PipelineVersion    string `json:"pipelinesVersion"`
+	ReadOnly           bool   `json:"isReadOnly"`
+	StreamLogs         bool   `json:"streamLogs"`
+	TenantNamespace    string `json:"tenantNamespace,omitempty"`
+	TriggersNamespace  string `json:"triggersNamespace,omitempty"`
+	TriggersVersion    string `json:"triggersVersion,omitempty"`
 }
 
 // GetProperties is used to get the installed namespace for the Dashboard,
 // the version of the Tekton Dashboard, the version of Tekton Pipelines,
 // when one's in read-only mode and Tekton Triggers version (if Installed)
-func (r Resource) GetProperties(request *restful.Request, response *restful.Response) {
+func (r Resource) GetProperties(response http.ResponseWriter, request *http.Request) {
 	pipelineNamespace := r.Options.GetPipelinesNamespace()
 	triggersNamespace := r.Options.GetTriggersNamespace()
 	dashboardVersion := getDashboardVersion(r, r.Options.InstallNamespace)
@@ -86,31 +65,9 @@ func (r Resource) GetProperties(request *restful.Request, response *restful.Resp
 		properties.TriggersVersion = triggersVersion
 	}
 
-	response.WriteEntity(properties)
-}
-
-func handleRequestError(response *restful.Response, responseBody []byte, requestError error) {
-	errorInfo := string(responseBody)
-	errorInfo = strings.Replace(errorInfo, "\"", "", -1)
-	errorInfo = strings.Replace(errorInfo, "\\", "", -1)
-	errorInfo = strings.Replace(errorInfo, "\n", "", -1)
-	// Checks if an error code can be found in the response
-	if strings.LastIndex(errorInfo, "code:") != -1 {
-		errorCodeString := strings.LastIndex(errorInfo, "code:")
-		// Checks if the code is 3-digits long
-		if len(errorInfo[errorCodeString+5:errorCodeString+8]) == 3 {
-			errorCode := errorInfo[errorCodeString+5 : errorCodeString+8]
-			errorCodeFormatted, err := strconv.Atoi(errorCode)
-			// Checks if the code can be converted to an integer without error
-			if err != nil {
-				utils.RespondError(response, requestError, http.StatusInternalServerError)
-				return
-			}
-			utils.RespondError(response, errors.New(errorInfo), errorCodeFormatted)
-			return
-		}
-		utils.RespondError(response, requestError, http.StatusInternalServerError)
-		return
-	}
-	utils.RespondError(response, requestError, http.StatusInternalServerError)
+	response.Header().Set("Content-Type", "application/json")
+	response.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	response.Header().Set("Pragma", "no-cache")
+	response.Header().Set("Expires", "0")
+	json.NewEncoder(response).Encode(properties)
 }

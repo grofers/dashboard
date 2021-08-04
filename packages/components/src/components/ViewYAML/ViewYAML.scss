@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Tekton Authors
+Copyright 2020-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,9 +11,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-@import '~@tektoncd/dashboard-components/dist/scss/vars';
-
 .bx--snippet--multi.tkn--view-yaml--dark {
   background-color: $gray-90; // TODO: $inverse-02 - see Log.scss
   color: $gray-10;            //       $inverse-01
+}
+
+.tkn--view-yaml--title {
+  display: inline-block;
+  margin-bottom: .5rem;
+
+  &:not(:first-child) {
+    margin-top: 1rem;
+  }
+}
+
+// TODO: Colorize YAML syntax to conform carbon design. See
+// https://github.com/carbon-design-system/carbon-website/issues/965 for more
+// details.
+.bx--snippet--multi {
+  max-width: none;
+
+  .token.string {
+    color: rgb(0, 187, 0);
+  }
 }

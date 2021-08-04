@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -17,166 +17,159 @@ import { Provider } from 'react-redux';
 import { Route } from 'react-router-dom';
 import configureStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
-import { renderWithRouter } from '@tektoncd/dashboard-components/src/utils/test';
+import { ALL_NAMESPACES } from '@tektoncd/dashboard-utils';
 
+import { renderWithRouter } from '../../utils/test';
 import EventListeners from '.';
-import * as API from '../../api/eventListeners';
+import * as API from '../../api';
+import * as APIUtils from '../../api/utils';
+import * as EventListenersAPI from '../../api/eventListeners';
 
 const middleware = [thunk];
 const mockStore = configureStore(middleware);
 
-const byNamespace = {
-  default: {
-    'event-listener': 'c930f02e-0582-11ea-8c1f-025765432111'
+const eventListener = {
+  apiVersion: 'triggers.tekton.dev/v1alpha1',
+  kind: 'EventListener',
+  metadata: {
+    creationTimestamp: '2019-11-12T19:29:46Z',
+    name: 'event-listener',
+    namespace: 'default',
+    uid: 'c930f02e-0582-11ea-8c1f-025765432111'
   }
 };
 
-const byId = {
-  'c930f02e-0582-11ea-8c1f-025765432111': {
-    apiVersion: 'triggers.tekton.dev/v1alpha1',
-    kind: 'EventListener',
-    metadata: {
-      creationTimestamp: '2019-11-12T19:29:46Z',
-      name: 'event-listener',
-      namespace: 'default',
-      uid: 'c930f02e-0582-11ea-8c1f-025765432111'
-    }
-  }
-};
+describe('EventListeners', () => {
+  beforeEach(() => {
+    jest
+      .spyOn(API, 'useNamespaces')
+      .mockImplementation(() => ({ data: ['default'] }));
+    jest
+      .spyOn(APIUtils, 'useSelectedNamespace')
+      .mockImplementation(() => ({ selectedNamespace: ALL_NAMESPACES }));
+  });
+  it('renders with no bindings', () => {
+    jest
+      .spyOn(EventListenersAPI, 'useEventListeners')
+      .mockImplementation(() => ({ data: [] }));
 
-const namespaces = {
-  byName: {
-    default: {
-      metadata: {
-        name: 'default'
-      }
-    }
-  },
-  errorMessage: null,
-  isFetching: false,
-  selected: '*'
-};
+    const store = mockStore({
+      notifications: {}
+    });
 
-it('EventListeners renders with no bindings', () => {
-  jest.spyOn(API, 'getEventListeners').mockImplementation(() => []);
+    const { getByText } = renderWithRouter(
+      <Provider store={store}>
+        <Route
+          path="/eventlisteners"
+          render={props => <EventListeners {...props} />}
+        />
+      </Provider>,
+      { route: '/eventlisteners' }
+    );
 
-  const store = mockStore({
-    eventListeners: {
-      byId: {},
-      byNamespace: {},
-      isFetching: false,
-      errorMessage: null
-    },
-    namespaces,
-    notifications: {},
-    properties: {}
+    expect(getByText('EventListeners')).toBeTruthy();
+    expect(getByText('No matching EventListeners found')).toBeTruthy();
   });
 
-  const { getByText } = renderWithRouter(
-    <Provider store={store}>
-      <Route
-        path="/eventlisteners"
-        render={props => <EventListeners {...props} />}
-      />
-    </Provider>,
-    { route: '/eventlisteners' }
-  );
+  it('renders with one binding', () => {
+    jest
+      .spyOn(EventListenersAPI, 'useEventListeners')
+      .mockImplementation(() => ({ data: [eventListener] }));
 
-  expect(getByText('EventListeners')).toBeTruthy();
-  expect(getByText('No matching EventListeners found')).toBeTruthy();
-});
+    const store = mockStore({
+      notifications: {}
+    });
 
-it('EventListeners renders with one binding', () => {
-  jest.spyOn(API, 'getEventListeners').mockImplementation(() => []);
+    const { queryByText, queryByTitle } = renderWithRouter(
+      <Provider store={store}>
+        <Route
+          path="/eventlisteners"
+          render={props => <EventListeners {...props} />}
+        />
+      </Provider>,
+      { route: '/eventlisteners' }
+    );
 
-  const store = mockStore({
-    eventListeners: {
-      byId,
-      byNamespace,
-      isFetching: false,
-      errorMessage: null
-    },
-    namespaces,
-    notifications: {},
-    properties: {}
+    expect(queryByText('EventListeners')).toBeTruthy();
+    expect(queryByText('No matching EventListeners found')).toBeFalsy();
+    expect(queryByText('event-listener')).toBeTruthy();
+    expect(queryByTitle('event-listener')).toBeTruthy();
   });
 
-  const { queryByText, queryByTitle } = renderWithRouter(
-    <Provider store={store}>
-      <Route
-        path="/eventlisteners"
-        render={props => <EventListeners {...props} />}
-      />
-    </Provider>,
-    { route: '/eventlisteners' }
-  );
+  it('can be filtered on a single label filter', async () => {
+    jest
+      .spyOn(EventListenersAPI, 'useEventListeners')
+      .mockImplementation(({ filters }) => ({
+        data: filters.length ? [] : [eventListener]
+      }));
 
-  expect(queryByText('EventListeners')).toBeTruthy();
-  expect(queryByText('No matching EventListeners found')).toBeFalsy();
-  expect(queryByText('event-listener')).toBeTruthy();
-  expect(queryByTitle('event-listener')).toBeTruthy();
-});
+    const store = mockStore({
+      notifications: {}
+    });
 
-it('EventListeners can be filtered on a single label filter', async () => {
-  jest.spyOn(API, 'getEventListeners').mockImplementation(() => []);
+    const { getByPlaceholderText, getByText, queryByText } = renderWithRouter(
+      <Provider store={store}>
+        <Route
+          path="/eventlisteners"
+          render={props => <EventListeners {...props} />}
+        />
+      </Provider>,
+      { route: '/eventlisteners' }
+    );
 
-  const store = mockStore({
-    eventListeners: {
-      byId,
-      byNamespace,
-      isFetching: true,
-      errorMessage: null
-    },
-    namespaces,
-    notifications: {},
-    properties: {}
+    const filterValue = 'baz:bam';
+    const filterInputField = getByPlaceholderText(/Input a label filter/);
+    fireEvent.change(filterInputField, { target: { value: filterValue } });
+    fireEvent.submit(getByText(/Input a label filter/i));
+
+    expect(queryByText(filterValue)).toBeTruthy();
+    expect(queryByText('event-listeners')).toBeFalsy();
   });
 
-  const { getByTestId, getByText, queryByText } = renderWithRouter(
-    <Provider store={store}>
-      <Route
-        path="/eventlisteners"
-        render={props => <EventListeners {...props} />}
-      />
-    </Provider>,
-    { route: '/eventlisteners' }
-  );
+  it('renders in loading state', () => {
+    jest
+      .spyOn(EventListenersAPI, 'useEventListeners')
+      .mockImplementation(() => ({ isLoading: true }));
 
-  const filterValue = 'baz:bam';
-  const filterInputField = getByTestId('filter-search-bar');
-  fireEvent.change(filterInputField, { target: { value: filterValue } });
-  fireEvent.submit(getByText(/Input a label filter/i));
+    const store = mockStore({
+      notifications: {}
+    });
 
-  expect(queryByText(filterValue)).toBeTruthy();
-  expect(queryByText('event-listeners')).toBeFalsy();
-});
+    const { queryByText } = renderWithRouter(
+      <Provider store={store}>
+        <Route
+          path="/eventlisteners"
+          render={props => <EventListeners {...props} />}
+        />
+      </Provider>,
+      { route: '/eventlisteners' }
+    );
 
-it('EventListeners renders in loading state', () => {
-  jest.spyOn(API, 'getEventListeners').mockImplementation(() => []);
-
-  const store = mockStore({
-    eventListeners: {
-      byId,
-      byNamespace,
-      isFetching: true,
-      errorMessage: null
-    },
-    namespaces,
-    notifications: {},
-    properties: {}
+    expect(queryByText(/EventListeners/i)).toBeTruthy();
+    expect(queryByText('No matching EventListeners found')).toBeFalsy();
+    expect(queryByText('event-listeners')).toBeFalsy();
   });
 
-  const { queryByText } = renderWithRouter(
-    <Provider store={store}>
-      <Route
-        path="/eventlisteners"
-        render={props => <EventListeners {...props} />}
-      />
-    </Provider>,
-    { route: '/eventlisteners' }
-  );
+  it('renders in error state', () => {
+    const error = 'fake_error_message';
+    jest
+      .spyOn(EventListenersAPI, 'useEventListeners')
+      .mockImplementation(() => ({ error }));
 
-  expect(queryByText(/EventListeners/i)).toBeTruthy();
-  expect(queryByText('No matching EventListeners found')).toBeFalsy();
-  expect(queryByText('event-listeners')).toBeFalsy();
+    const store = mockStore({
+      notifications: {}
+    });
+
+    const { queryByText } = renderWithRouter(
+      <Provider store={store}>
+        <Route
+          path="/eventlisteners"
+          render={props => <EventListeners {...props} />}
+        />
+      </Provider>,
+      { route: '/eventlisteners' }
+    );
+
+    expect(queryByText(error)).toBeTruthy();
+  });
 });

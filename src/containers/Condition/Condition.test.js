@@ -14,8 +14,9 @@ limitations under the License.
 import React from 'react';
 import { waitFor } from '@testing-library/react';
 import { createIntl } from 'react-intl';
-import { renderWithIntl } from '@tektoncd/dashboard-components/src/utils/test';
 
+import { render } from '../../utils/test';
+import * as API from '../../api/conditions';
 import { ConditionContainer } from './Condition';
 
 const intl = createIntl({
@@ -31,95 +32,14 @@ describe('ConditionContainer', () => {
       }
     };
 
-    const errorMessage = 'fake_errorMessage';
+    const error = 'fake_errorMessage';
+    jest.spyOn(API, 'useCondition').mockImplementation(() => ({ error }));
 
-    const { getByText } = renderWithIntl(
-      <ConditionContainer
-        error={errorMessage}
-        fetchCondition={() => Promise.resolve()}
-        intl={intl}
-        match={match}
-      />
+    const { getByText } = render(
+      <ConditionContainer intl={intl} match={match} />
     );
     await waitFor(() => getByText('Error loading resource'));
-    expect(getByText(errorMessage)).toBeTruthy();
-  });
-
-  it('handles updates', async () => {
-    const fetchConditionSpy = jest
-      .fn()
-      .mockImplementation(() => Promise.resolve());
-    const match = {
-      params: {
-        conditionName: 'bar',
-        namespace: 'default'
-      }
-    };
-
-    const { getByText, rerender } = renderWithIntl(
-      <ConditionContainer
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={match}
-      />
-    );
-    await waitFor(() => getByText('Error loading resource'));
-    expect(fetchConditionSpy).toHaveBeenCalledTimes(1);
-
-    renderWithIntl(
-      <ConditionContainer
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={match}
-      />,
-      { rerender }
-    );
-    // nothing has changed so fetchData shouldn't be called
-    expect(fetchConditionSpy).toHaveBeenCalledTimes(1);
-
-    const matchWithUpdatedNamespace = {
-      params: {
-        ...match.params,
-        namespace: 'updated_namespace'
-      }
-    };
-    renderWithIntl(
-      <ConditionContainer
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={matchWithUpdatedNamespace}
-      />,
-      { rerender }
-    );
-    expect(fetchConditionSpy).toHaveBeenCalledTimes(2);
-
-    const matchWithUpdatedConditionName = {
-      params: {
-        ...matchWithUpdatedNamespace.params,
-        conditionName: 'updated_conditionName'
-      }
-    };
-    renderWithIntl(
-      <ConditionContainer
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={matchWithUpdatedConditionName}
-        webSocketConnected={false}
-      />,
-      { rerender }
-    );
-    expect(fetchConditionSpy).toHaveBeenCalledTimes(3);
-
-    renderWithIntl(
-      <ConditionContainer
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={matchWithUpdatedConditionName}
-        webSocketConnected
-      />,
-      { rerender }
-    );
-    expect(fetchConditionSpy).toHaveBeenCalledTimes(4);
+    expect(getByText(error)).toBeTruthy();
   });
 
   it('renders params', async () => {
@@ -132,9 +52,9 @@ describe('ConditionContainer', () => {
         ]
       }
     };
-    const fetchConditionSpy = jest
-      .fn()
-      .mockImplementation(() => Promise.resolve(condition));
+    jest
+      .spyOn(API, 'useCondition')
+      .mockImplementation(() => ({ data: condition }));
     const match = {
       params: {
         conditionName: 'bar',
@@ -142,13 +62,8 @@ describe('ConditionContainer', () => {
       }
     };
 
-    const { getByText } = renderWithIntl(
-      <ConditionContainer
-        condition={condition}
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={match}
-      />
+    const { getByText } = render(
+      <ConditionContainer intl={intl} match={match} />
     );
     expect(getByText(/parameters/i)).toBeTruthy();
     expect(getByText('param1')).toBeTruthy();
@@ -162,9 +77,9 @@ describe('ConditionContainer', () => {
       metadata: {},
       spec: {}
     };
-    const fetchConditionSpy = jest
-      .fn()
-      .mockImplementation(() => Promise.resolve(condition));
+    jest
+      .spyOn(API, 'useCondition')
+      .mockImplementation(() => ({ data: condition }));
     const match = {
       params: {
         conditionName: 'bar',
@@ -172,13 +87,8 @@ describe('ConditionContainer', () => {
       }
     };
 
-    const { queryByText } = renderWithIntl(
-      <ConditionContainer
-        condition={condition}
-        fetchCondition={fetchConditionSpy}
-        intl={intl}
-        match={match}
-      />
+    const { queryByText } = render(
+      <ConditionContainer intl={intl} match={match} />
     );
     expect(queryByText(/parameters/i)).toBeFalsy();
   });

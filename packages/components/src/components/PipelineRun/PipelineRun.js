@@ -32,8 +32,6 @@ import {
   TaskTree
 } from '..';
 
-import '../../scss/Run.scss';
-
 export /* istanbul ignore next */ class PipelineRunContainer extends Component {
   state = {
     isLogsMaximized: false
@@ -56,7 +54,10 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
 
   getLogContainer({ stepName, stepStatus, taskRun }) {
     const {
+      enableLogAutoScroll,
+      enableLogScrollButtons,
       fetchLogs,
+      forceLogPolling,
       getLogsToolbar,
       maximizedLogsContainer,
       pollingInterval,
@@ -90,9 +91,13 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
             })
           }
           fetchLogs={() => fetchLogs(stepName, stepStatus, taskRun)}
+          forcePolling={forceLogPolling}
           key={`${selectedTaskId}:${selectedStepId}`}
           pollingInterval={pollingInterval}
           stepStatus={stepStatus}
+          isLogsMaximized={isLogsMaximized}
+          enableLogAutoScroll={enableLogAutoScroll}
+          enableLogScrollButtons={enableLogScrollButtons}
         />
       </LogsRoot>
     );
@@ -185,7 +190,8 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
       loading,
       onViewChange,
       pipelineRun,
-      rerun,
+      pod,
+      runaction,
       selectedStepId,
       selectedTaskId,
       showIO,
@@ -315,7 +321,7 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
           status={pipelineRunStatus}
           triggerHeader={triggerHeader}
         >
-          {rerun}
+          {runaction}
         </RunHeader>
         {customNotification}
         {taskRuns.length > 0 && (
@@ -331,7 +337,6 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
                 definition={definition}
                 logContainer={logContainer}
                 onViewChange={onViewChange}
-                showIO={showIO}
                 stepName={selectedStepId}
                 stepStatus={stepStatus}
                 taskRun={taskRun}
@@ -341,9 +346,11 @@ export /* istanbul ignore next */ class PipelineRunContainer extends Component {
               (selectedTaskId && (
                 <TaskRunDetails
                   onViewChange={onViewChange}
+                  pod={pod}
                   task={task}
                   taskRun={taskRun}
                   view={view}
+                  showIO={showIO}
                 />
               ))}
           </div>

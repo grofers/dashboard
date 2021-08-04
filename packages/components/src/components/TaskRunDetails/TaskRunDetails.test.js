@@ -14,14 +14,14 @@ limitations under the License.
 import React from 'react';
 import { fireEvent } from '@testing-library/react';
 
-import { renderWithIntl } from '../../utils/test';
+import { render, renderWithRouter } from '../../utils/test';
 import TaskRunDetails from './TaskRunDetails';
 
 describe('TaskRunDetails', () => {
   it('renders task name and error state', () => {
     const taskRunName = 'task-run-name';
     const status = 'error';
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <TaskRunDetails
         taskRun={{ metadata: { name: taskRunName }, spec: {}, status }}
       />
@@ -38,7 +38,7 @@ describe('TaskRunDetails', () => {
     const paramValue = 'v';
     const params = [{ name: paramKey, value: paramValue }];
     const description = 'param_description';
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <TaskRunDetails
         task={{
           metadata: 'task',
@@ -61,7 +61,7 @@ describe('TaskRunDetails', () => {
     const paramValue = 'v';
     const params = [{ name: paramKey, value: paramValue }];
     const description = 'param_description';
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <TaskRunDetails
         taskRun={{
           metadata: { name: taskRunName },
@@ -79,17 +79,17 @@ describe('TaskRunDetails', () => {
     expect(queryByText(description)).toBeTruthy();
   });
 
-  it('does not render parameters or results tabs when those fields are not present', () => {
+  it('does not render tabs whose fields are not provided', () => {
     const taskRun = {
       metadata: { name: 'task-run-name' },
       spec: {},
       status: {}
     };
-    const { queryByText } = renderWithIntl(
-      <TaskRunDetails taskRun={taskRun} />
-    );
+    const { queryByText } = render(<TaskRunDetails taskRun={taskRun} />);
     expect(queryByText(/parameters/i)).toBeFalsy();
     expect(queryByText(/results/i)).toBeFalsy();
+    expect(queryByText(/resources/i)).toBeFalsy();
+    expect(queryByText(/pod/i)).toBeFalsy();
     expect(queryByText(/status/i)).toBeTruthy();
   });
 
@@ -98,7 +98,7 @@ describe('TaskRunDetails', () => {
       metadata: { name: 'task-run-name' },
       spec: { params: [{ name: 'fake_name', value: 'fake_value' }] }
     };
-    const { queryByText, queryAllByText } = renderWithIntl(
+    const { queryByText, queryAllByText } = render(
       <TaskRunDetails taskRun={taskRun} view="status" />
     );
     expect(queryByText(/status/i)).toBeTruthy();
@@ -116,7 +116,7 @@ describe('TaskRunDetails', () => {
       spec: {},
       status: { taskResults: [{ name: resultName, value: 'hello' }] }
     };
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <TaskRunDetails
         task={{
           metadata: 'task',
@@ -142,9 +142,86 @@ describe('TaskRunDetails', () => {
       },
       status: { taskResults: [{ name: resultName, value: 'hello' }] }
     };
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <TaskRunDetails taskRun={taskRun} view="results" />
     );
     expect(queryByText(description)).toBeTruthy();
+  });
+
+  it('renders pod', () => {
+    const events = 'fake-events';
+    const pod = 'fake-pod';
+    const taskRun = {
+      metadata: { name: 'task-run-name' },
+      spec: {},
+      status: {}
+    };
+    const { queryByText } = render(
+      <TaskRunDetails
+        pod={{
+          events,
+          resource: pod
+        }}
+        task={{
+          metadata: 'task',
+          spec: {}
+        }}
+        taskRun={taskRun}
+        view="pod"
+      />
+    );
+    expect(queryByText('Pod')).toBeTruthy();
+    expect(queryByText(events)).toBeTruthy();
+    expect(queryByText(pod)).toBeTruthy();
+  });
+
+  it('renders both input and output resources', () => {
+    const inputResourceName = 'input-resource';
+    const outputResourceName = 'output-resource';
+    const inputs = [
+      { name: inputResourceName, resourceRef: { name: 'input-resource-ref' } }
+    ];
+    const outputs = [{ name: outputResourceName, resourceSpec: '' }];
+
+    const taskRun = {
+      metadata: { name: 'task-run-name', namespace: 'namespace-name' },
+      spec: {
+        resources: {
+          inputs,
+          outputs
+        }
+      }
+    };
+
+    const { queryByText } = renderWithRouter(
+      <TaskRunDetails taskRun={taskRun} view="resources" showIO />
+    );
+
+    expect(queryByText(/input resources/i)).toBeTruthy();
+    expect(queryByText(inputResourceName)).toBeTruthy();
+    expect(queryByText(/output resources/i)).toBeTruthy();
+    expect(queryByText(outputResourceName)).toBeTruthy();
+  });
+
+  it('renders output resources', () => {
+    const outputResourceName = 'output-resource';
+    const outputs = [{ name: outputResourceName, resourceSpec: '' }];
+
+    const taskRun = {
+      metadata: { name: 'task-run-name', namespace: 'namespace-name' },
+      spec: {
+        resources: {
+          outputs
+        }
+      }
+    };
+
+    const { queryByText } = renderWithRouter(
+      <TaskRunDetails taskRun={taskRun} view="resources" showIO />
+    );
+
+    expect(queryByText(/input resources/i)).toBeFalsy();
+    expect(queryByText(/output resources/i)).toBeTruthy();
+    expect(queryByText(outputResourceName)).toBeTruthy();
   });
 });

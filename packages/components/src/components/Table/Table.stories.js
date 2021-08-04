@@ -43,6 +43,12 @@ export default {
     showFilters: false,
     title: 'Resource Name'
   },
+  argTypes: {
+    size: {
+      type: 'select',
+      options: ['xs', 'sm', 'md', 'lg', 'xl']
+    }
+  },
   component: Table,
   title: 'Components/Table'
 };
@@ -56,6 +62,7 @@ export const Simple = args => (
     loading={args.loading}
     rows={[]}
     selectedNamespace={args.selectedNamespace}
+    size={args.size}
     title={args.title}
   />
 );
@@ -63,7 +70,7 @@ Simple.args = {
   headers: [
     { key: 'name', header: 'Name' },
     { key: 'namespace', header: 'Namespace' },
-    { key: 'date', header: 'Date Created' }
+    { key: 'date', header: 'Date created' }
   ],
   selectedNamespace: '*'
 };
@@ -79,11 +86,12 @@ export const ToolbarButton = args => (
     headers={[
       { key: 'name', header: 'Name' },
       { key: 'namespace', header: 'Namespace' },
-      { key: 'date', header: 'Date Created' }
+      { key: 'date', header: 'Date created' }
     ]}
     loading={args.loading}
     rows={args.rows}
     selectedNamespace="*"
+    size={args.size}
     title={args.title}
     toolbarButtons={[{ onClick: action('handleNew'), text: 'Add', icon: Add }]}
   />
@@ -116,6 +124,7 @@ export const BatchActions = args => (
     loading={args.loading}
     rows={args.rows}
     selectedNamespace="*"
+    size={args.size}
     title={args.title}
   />
 );
@@ -167,12 +176,13 @@ export const Sorting = args => {
       headers={[
         { key: 'name', header: 'Name' },
         { key: 'namespace', header: 'Namespace' },
-        { key: 'date', header: 'Date Created' }
+        { key: 'date', header: 'Date created' }
       ]}
       isSortable={args.isSortable}
       loading={args.loading}
       rows={rows}
       selectedNamespace="*"
+      size={args.size}
       title={args.title}
       toolbarButtons={[
         { onClick: action('handleNew'), text: 'Add', icon: Add },

@@ -18,61 +18,18 @@ import (
 	"sync"
 )
 
-type MessageType string
+type Operation string
 
-// Reference outside of package
 const (
-	Log                          MessageType = "Log"
-	NamespaceCreated             MessageType = "NamespaceCreated"
-	NamespaceUpdated             MessageType = "NamespaceUpdated"
-	NamespaceDeleted             MessageType = "NamespaceDeleted"
-	PipelineCreated              MessageType = "PipelineCreated"
-	PipelineDeleted              MessageType = "PipelineDeleted"
-	PipelineUpdated              MessageType = "PipelineUpdated"
-	ClusterTaskCreated           MessageType = "ClusterTaskCreated"
-	ClusterTaskDeleted           MessageType = "ClusterTaskDeleted"
-	ClusterTaskUpdated           MessageType = "ClusterTaskUpdated"
-	TaskCreated                  MessageType = "TaskCreated"
-	TaskDeleted                  MessageType = "TaskDeleted"
-	TaskUpdated                  MessageType = "TaskUpdated"
-	PipelineResourceCreated      MessageType = "PipelineResourceCreated"
-	PipelineResourceDeleted      MessageType = "PipelineResourceDeleted"
-	PipelineResourceUpdated      MessageType = "PipelineResourceUpdated"
-	PipelineRunCreated           MessageType = "PipelineRunCreated"
-	PipelineRunDeleted           MessageType = "PipelineRunDeleted"
-	PipelineRunUpdated           MessageType = "PipelineRunUpdated"
-	TaskRunCreated               MessageType = "TaskRunCreated"
-	TaskRunDeleted               MessageType = "TaskRunDeleted"
-	TaskRunUpdated               MessageType = "TaskRunUpdated"
-	ConditionCreated             MessageType = "ConditionCreated"
-	ConditionDeleted             MessageType = "ConditionDeleted"
-	ConditionUpdated             MessageType = "ConditionUpdated"
-	ResourceExtensionCreated     MessageType = "ResourceExtensionCreated"
-	ResourceExtensionUpdated     MessageType = "ResourceExtensionUpdated"
-	ResourceExtensionDeleted     MessageType = "ResourceExtensionDeleted"
-	ServiceExtensionCreated      MessageType = "ServiceExtensionCreated"
-	ServiceExtensionUpdated      MessageType = "ServiceExtensionUpdated"
-	ServiceExtensionDeleted      MessageType = "ServiceExtensionDeleted"
-	ServiceAccountCreated        MessageType = "ServiceAccountCreated"
-	ServiceAccountDeleted        MessageType = "ServiceAccountDeleted"
-	ServiceAccountUpdated        MessageType = "ServiceAccountUpdated"
-	TriggerBindingCreated        MessageType = "TriggerBindingCreated"
-	TriggerBindingDeleted        MessageType = "TriggerBindingDeleted"
-	TriggerBindingUpdated        MessageType = "TriggerBindingUpdated"
-	ClusterTriggerBindingCreated MessageType = "ClusterTriggerBindingCreated"
-	ClusterTriggerBindingDeleted MessageType = "ClusterTriggerBindingDeleted"
-	ClusterTriggerBindingUpdated MessageType = "ClusterTriggerBindingUpdated"
-	TriggerTemplateCreated       MessageType = "TriggerTemplateCreated"
-	TriggerTemplateDeleted       MessageType = "TriggerTemplateDeleted"
-	TriggerTemplateUpdated       MessageType = "TriggerTemplateUpdated"
-	EventListenerCreated         MessageType = "EventListenerCreated"
-	EventListenerDeleted         MessageType = "EventListenerDeleted"
-	EventListenerUpdated         MessageType = "EventListenerUpdated"
+	Created Operation = "Created"
+	Deleted Operation = "Deleted"
+	Updated Operation = "Updated"
 )
 
 type SocketData struct {
-	MessageType MessageType
-	Payload     interface{}
+	Kind      string      `json:"kind"`
+	Operation Operation   `json:"operation"`
+	Payload   interface{} `json:"payload"`
 }
 
 // Only a pointer to the struct should be used
@@ -101,14 +58,14 @@ func (s *Subscriber) UnsubChan() <-chan struct{} {
 	return s.unsubChan
 }
 
-var expiredError error = errors.New("Broadcaster expired")
+var errExpired error = errors.New("broadcaster expired")
 
 // Creates broadcaster from channel parameter and immediately starts broadcasting
 // Without any subscribers, received data will be discarded
 // Broadcaster should be the only channel reader
 func NewBroadcaster(c chan SocketData) *Broadcaster {
 	if c == nil {
-		panic("Channel passed cannot be nil")
+		panic("channel passed cannot be nil")
 	}
 
 	b := &Broadcaster{subscribers: new(sync.Map)}
@@ -155,7 +112,7 @@ func (b *Broadcaster) Subscribe() (*Subscriber, error) {
 	defer b.expiredLock.Unlock()
 
 	if b.expired {
-		return &Subscriber{}, expiredError
+		return &Subscriber{}, errExpired
 	}
 	newSub := &Subscriber{
 		subChan:   make(chan SocketData),
@@ -171,14 +128,14 @@ func (b *Broadcaster) Unsubscribe(sub *Subscriber) error {
 	defer b.expiredLock.Unlock()
 
 	if b.expired {
-		return expiredError
+		return errExpired
 	}
 	if _, ok := b.subscribers.Load(sub); ok {
 		b.subscribers.Delete(sub)
 		close(sub.unsubChan)
 		return nil
 	}
-	return errors.New("Subscription not found")
+	return errors.New("subscription not found")
 }
 
 // Iterates over sync.Map and returns number of elements

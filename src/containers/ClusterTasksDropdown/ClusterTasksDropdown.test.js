@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Tekton Authors
+Copyright 2020-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,7 +16,7 @@ import { fireEvent, getNodeText } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
-import { renderWithIntl } from '@tektoncd/dashboard-components/src/utils/test';
+import { render } from '../../utils/test';
 
 import ClusterTasksDropdown from './ClusterTasksDropdown';
 import * as API from '../../api/clusterTasks';
@@ -26,37 +26,23 @@ const props = {
   onChange: () => {}
 };
 
-const clusterTasksByName = {
-  'clustertask-1': {
+const clusterTasks = [
+  {
     metadata: {
       name: 'clustertask-1'
     }
   },
-  'clustertask-2': {
+  {
     metadata: {
       name: 'clustertask-2'
     }
   },
-  'clustertask-3': {
+  {
     metadata: {
       name: 'clustertask-3'
     }
   }
-};
-
-const clusterTasksStoreDefault = {
-  clusterTasks: {
-    byName: clusterTasksByName,
-    isFetching: false
-  }
-};
-
-const clusterTasksStoreFetching = {
-  clusterTasks: {
-    byName: clusterTasksByName,
-    isFetching: true
-  }
-};
+];
 
 const initialTextRegExp = new RegExp('select clustertask', 'i');
 
@@ -66,11 +52,13 @@ const checkDropdownItems = ({
   testDict,
   itemPrefixRegExp = new RegExp('clustertask-', 'i')
 }) => {
-  Object.keys(testDict).forEach(item => {
-    expect(queryByText(new RegExp(item, 'i'))).toBeTruthy();
+  testDict.forEach(item => {
+    expect(queryByText(new RegExp(item.metadata.name, 'i'))).toBeTruthy();
   });
   getAllByText(itemPrefixRegExp).forEach(node => {
-    expect(getNodeText(node) in testDict).toBeTruthy();
+    expect(
+      testDict.some(item => item.metadata.name === getNodeText(node))
+    ).toBeTruthy();
   });
 };
 
@@ -78,18 +66,14 @@ const middleware = [thunk];
 const mockStore = configureStore(middleware);
 
 describe('ClusterTasksDropdown', () => {
-  beforeEach(() => {
+  it('renders items', () => {
     jest
-      .spyOn(API, 'getClusterTasks')
-      .mockImplementation(() => clusterTasksByName);
-  });
-
-  it('renders items based on Redux state', () => {
+      .spyOn(API, 'useClusterTasks')
+      .mockImplementation(() => ({ data: clusterTasks }));
     const store = mockStore({
-      ...clusterTasksStoreDefault,
       notifications: {}
     });
-    const { getByPlaceholderText, getAllByText, queryByText } = renderWithIntl(
+    const { getByPlaceholderText, getAllByText, queryByText } = render(
       <Provider store={store}>
         <ClusterTasksDropdown {...props} />
       </Provider>
@@ -99,21 +83,19 @@ describe('ClusterTasksDropdown', () => {
     checkDropdownItems({
       getAllByText,
       queryByText,
-      testDict: clusterTasksByName
+      testDict: clusterTasks
     });
   });
 
   it('renders controlled selection', () => {
+    jest
+      .spyOn(API, 'useClusterTasks')
+      .mockImplementation(() => ({ data: clusterTasks }));
     const store = mockStore({
-      ...clusterTasksStoreDefault,
       notifications: {}
     });
     // Select item 'clustertask-1'
-    const {
-      queryByDisplayValue,
-      queryByPlaceholderText,
-      rerender
-    } = renderWithIntl(
+    const { queryByDisplayValue, queryByPlaceholderText, rerender } = render(
       <Provider store={store}>
         <ClusterTasksDropdown
           {...props}
@@ -123,7 +105,7 @@ describe('ClusterTasksDropdown', () => {
     );
     expect(queryByDisplayValue(/clustertask-1/i)).toBeTruthy();
     // Select item 'clustertask-2'
-    renderWithIntl(
+    render(
       <Provider store={store}>
         <ClusterTasksDropdown
           {...props}
@@ -134,7 +116,7 @@ describe('ClusterTasksDropdown', () => {
     );
     expect(queryByDisplayValue(/clustertask-2/i)).toBeTruthy();
     // No selected item (select item '')
-    renderWithIntl(
+    render(
       <Provider store={store}>
         <ClusterTasksDropdown {...props} selectedItem="" />
       </Provider>,
@@ -144,14 +126,12 @@ describe('ClusterTasksDropdown', () => {
   });
 
   it('renders empty', () => {
+    jest.spyOn(API, 'useClusterTasks').mockImplementation(() => ({ data: [] }));
+
     const store = mockStore({
-      clusterTasks: {
-        byName: {},
-        isFetching: false
-      },
       notifications: {}
     });
-    const { queryByPlaceholderText } = renderWithIntl(
+    const { queryByPlaceholderText } = render(
       <Provider store={store}>
         <ClusterTasksDropdown {...props} />
       </Provider>
@@ -160,12 +140,14 @@ describe('ClusterTasksDropdown', () => {
     expect(queryByPlaceholderText(initialTextRegExp)).toBeFalsy();
   });
 
-  it('renders loading skeleton based on Redux state', () => {
+  it('renders loading state', () => {
+    jest
+      .spyOn(API, 'useClusterTasks')
+      .mockImplementation(() => ({ isFetching: true }));
     const store = mockStore({
-      ...clusterTasksStoreFetching,
       notifications: {}
     });
-    const { queryByPlaceholderText } = renderWithIntl(
+    const { queryByPlaceholderText } = render(
       <Provider store={store}>
         <ClusterTasksDropdown {...props} />
       </Provider>
@@ -174,12 +156,14 @@ describe('ClusterTasksDropdown', () => {
   });
 
   it('handles onChange event', () => {
+    jest
+      .spyOn(API, 'useClusterTasks')
+      .mockImplementation(() => ({ data: clusterTasks }));
     const store = mockStore({
-      ...clusterTasksStoreDefault,
       notifications: {}
     });
     const onChange = jest.fn();
-    const { getByPlaceholderText, getByText } = renderWithIntl(
+    const { getByPlaceholderText, getByText } = render(
       <Provider store={store}>
         <ClusterTasksDropdown {...props} onChange={onChange} />
       </Provider>

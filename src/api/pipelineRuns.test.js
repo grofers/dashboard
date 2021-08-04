@@ -12,24 +12,23 @@ limitations under the License.
 */
 
 import fetchMock from 'fetch-mock';
-import { labels } from '@tektoncd/dashboard-utils';
 
 import * as API from './pipelineRuns';
+import * as utils from './utils';
 
 it('cancelPipelineRun', () => {
   const name = 'foo';
   const namespace = 'foospace';
-  const data = { fake: 'pipelineRun', spec: { status: 'running' } };
-  fetchMock.get(/pipelineruns/, Promise.resolve(data));
-  const payload = {
-    fake: 'pipelineRun',
-    spec: { status: 'PipelineRunCancelled' }
-  };
-  fetchMock.put(`end:${name}`, 204);
-  return API.cancelPipelineRun({ name, namespace }).then(() => {
+  const payload = [
+    { op: 'replace', path: '/spec/status', value: 'PipelineRunCancelled' }
+  ];
+  const returnedPipelineRun = { fake: 'PipelineRun' };
+  fetchMock.patch(`end:${name}`, returnedPipelineRun);
+  return API.cancelPipelineRun({ name, namespace }).then(response => {
     expect(fetchMock.lastOptions()).toMatchObject({
       body: JSON.stringify(payload)
     });
+    expect(response).toEqual(returnedPipelineRun);
     fetchMock.restore();
   });
 });
@@ -54,11 +53,7 @@ it('createPipelineRun', () => {
     apiVersion: 'tekton.dev/v1beta1',
     kind: 'PipelineRun',
     metadata: {
-      name: `${pipelineName}-run-${Date.now()}`,
-      labels: {
-        [labels.PIPELINE]: pipelineName,
-        app: 'tekton-app'
-      }
+      name: `${pipelineName}-run-${Date.now()}`
     },
     spec: {
       pipelineRef: {
@@ -110,11 +105,7 @@ it('createPipelineRun with nodeSelector', () => {
     apiVersion: 'tekton.dev/v1beta1',
     kind: 'PipelineRun',
     metadata: {
-      name: `${pipelineName}-run-${Date.now()}`,
-      labels: {
-        [labels.PIPELINE]: pipelineName,
-        app: 'tekton-app'
-      }
+      name: `${pipelineName}-run-${Date.now()}`
     },
     spec: {
       pipelineRef: {
@@ -193,6 +184,40 @@ it('getPipelineRuns With Query Params', () => {
   );
 });
 
+it('usePipelineRuns', () => {
+  const query = { fake: 'query' };
+  const params = { fake: 'params' };
+  jest.spyOn(utils, 'useCollection').mockImplementation(() => query);
+  expect(API.usePipelineRuns(params)).toEqual(query);
+  expect(utils.useCollection).toHaveBeenCalledWith(
+    'PipelineRun',
+    API.getPipelineRuns,
+    params
+  );
+});
+
+it('usePipelineRun', () => {
+  const query = { fake: 'query' };
+  const params = { fake: 'params' };
+  jest.spyOn(utils, 'useResource').mockImplementation(() => query);
+  expect(API.usePipelineRun(params)).toEqual(query);
+  expect(utils.useResource).toHaveBeenCalledWith(
+    'PipelineRun',
+    API.getPipelineRun,
+    params,
+    undefined
+  );
+
+  const queryConfig = { fake: 'queryConfig' };
+  API.usePipelineRun(params, queryConfig);
+  expect(utils.useResource).toHaveBeenCalledWith(
+    'PipelineRun',
+    API.getPipelineRun,
+    params,
+    queryConfig
+  );
+});
+
 it('rerunPipelineRun', () => {
   const filter = 'end:/pipelineruns/';
   const originalPipelineRun = {
@@ -212,4 +237,21 @@ it('rerunPipelineRun', () => {
     expect(data).toEqual(newPipelineRun);
     fetchMock.restore();
   });
+});
+
+it('startPipelineRun', () => {
+  const name = 'foo';
+  const namespace = 'foospace';
+  const returnedPipelineRun = { fake: 'PipelineRun' };
+  const payload = [{ op: 'remove', path: '/spec/status' }];
+  fetchMock.patch(`end:${name}`, returnedPipelineRun);
+  return API.startPipelineRun({ metadata: { name, namespace } }).then(
+    response => {
+      expect(fetchMock.lastOptions()).toMatchObject({
+        body: JSON.stringify(payload)
+      });
+      expect(response).toEqual(returnedPipelineRun);
+      fetchMock.restore();
+    }
+  );
 });

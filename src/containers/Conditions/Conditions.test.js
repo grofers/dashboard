@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Tekton Authors
+Copyright 2020-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,8 +18,8 @@ import thunk from 'redux-thunk';
 import configureStore from 'redux-mock-store';
 import { Route } from 'react-router-dom';
 import { paths, urls } from '@tektoncd/dashboard-utils';
-import { renderWithRouter } from '@tektoncd/dashboard-components/src/utils/test';
 
+import { renderWithRouter } from '../../utils/test';
 import * as API from '../../api/conditions';
 import ConditionsContainer from './Conditions';
 
@@ -33,62 +33,46 @@ const namespacesTestStore = {
   }
 };
 
-const conditionsTestStore = {
-  conditions: {
-    isFetching: false,
-    byId: {
-      'conditionWithTwoLabels-id': {
-        metadata: {
-          name: 'conditionWithTwoLabels',
-          namespace: 'namespace-1',
-          labels: {
-            foo: 'bar',
-            baz: 'bam'
-          },
-          uid: 'conditionWithTwoLabels-id'
-        }
-      },
-      'conditionWithSingleLabel-id': {
-        metadata: {
-          name: 'conditionWithSingleLabel',
-          namespace: 'namespace-1',
-          uid: 'conditionWithSingleLabel-id',
-          labels: {
-            foo: 'bar'
-          }
-        }
-      }
-    },
-    byNamespace: {
-      'namespace-1': {
-        conditionWithTwoLabels: 'conditionWithTwoLabels-id',
-        conditionWithSingleLabel: 'conditionWithSingleLabel-id'
-      }
+const conditionWithSingleLabel = {
+  metadata: {
+    name: 'conditionWithSingleLabel',
+    namespace: 'namespace-1',
+    uid: 'conditionWithSingleLabel-id',
+    labels: {
+      foo: 'bar'
     }
   }
 };
+
+const conditionWithTwoLabels = {
+  metadata: {
+    name: 'conditionWithTwoLabels',
+    namespace: 'namespace-1',
+    labels: {
+      foo: 'bar',
+      baz: 'bam'
+    },
+    uid: 'conditionWithTwoLabels-id'
+  }
+};
+
 const middleware = [thunk];
 const mockStore = configureStore(middleware);
 const testStore = {
   ...namespacesTestStore,
   notifications: {
     webSocketConnected: false
-  },
-  properties: {},
-  ...conditionsTestStore
+  }
 };
 
 describe('Conditions', () => {
-  beforeEach(() => {
-    jest.spyOn(API, 'getConditions').mockImplementation(() => []);
-  });
-
   it('renders loading state', async () => {
+    jest
+      .spyOn(API, 'useConditions')
+      .mockImplementation(() => ({ isLoading: true }));
     const mockTestStore = mockStore({
-      conditions: { byId: {}, byNamespace: {}, isFetching: true },
       ...namespacesTestStore,
-      notifications: {},
-      properties: {}
+      notifications: {}
     });
     const { queryByText } = renderWithRouter(
       <Provider store={mockTestStore}>
@@ -102,9 +86,14 @@ describe('Conditions', () => {
     expect(queryByText('Conditions')).toBeTruthy();
   });
 
-  it('handles updates', async () => {
+  it('renders', async () => {
+    jest.spyOn(API, 'useConditions').mockImplementation(({ filters }) => ({
+      data: filters.length
+        ? [conditionWithTwoLabels]
+        : [conditionWithSingleLabel, conditionWithTwoLabels]
+    }));
     const mockTestStore = mockStore(testStore);
-    const { container, getByTestId, getByText, queryByText } = renderWithRouter(
+    const { getByPlaceholderText, getByText, queryByText } = renderWithRouter(
       <Provider store={mockTestStore}>
         <Route
           path={paths.conditions.all()}
@@ -115,45 +104,21 @@ describe('Conditions', () => {
     );
 
     expect(queryByText('conditionWithSingleLabel')).toBeTruthy();
-    expect(API.getConditions).toHaveBeenCalledTimes(1);
 
     const filterValue = 'baz:bam';
-    const filterInputField = getByTestId('filter-search-bar');
+    const filterInputField = getByPlaceholderText(/Input a label filter/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
     fireEvent.submit(getByText(/Input a label filter/i));
 
     expect(queryByText(filterValue)).toBeTruthy();
     expect(queryByText('conditionWithSingleLabel')).toBeFalsy();
     expect(queryByText('conditionWithTwoLabels')).toBeTruthy();
-    expect(API.getConditions).toHaveBeenCalledTimes(2);
-
-    renderWithRouter(
-      <Provider
-        store={mockStore({
-          ...testStore,
-          notifications: {
-            webSocketConnected: true
-          },
-          propeties: {}
-        })}
-      >
-        <Route
-          path={paths.conditions.all()}
-          render={props => <ConditionsContainer {...props} />}
-        />
-      </Provider>,
-      { container, route: urls.conditions.all() }
-    );
-
-    expect(API.getConditions).toHaveBeenCalledTimes(3);
   });
 
   it('handles error', async () => {
-    const errorMessage = 'fake_errorMessage';
-    const mockTestStore = mockStore({
-      ...testStore,
-      conditions: { ...conditionsTestStore.conditions, errorMessage }
-    });
+    const error = 'fake_errorMessage';
+    jest.spyOn(API, 'useConditions').mockImplementation(() => ({ error }));
+    const mockTestStore = mockStore(testStore);
     const { queryByText } = renderWithRouter(
       <Provider store={mockTestStore}>
         <Route
@@ -164,6 +129,6 @@ describe('Conditions', () => {
       { route: urls.conditions.all() }
     );
 
-    expect(queryByText(errorMessage)).toBeTruthy();
+    expect(queryByText(error)).toBeTruthy();
   });
 });

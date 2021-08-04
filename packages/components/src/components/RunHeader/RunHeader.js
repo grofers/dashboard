@@ -18,8 +18,6 @@ import { copyToClipboard } from '@tektoncd/dashboard-utils';
 
 import { FormattedDate } from '..';
 
-import './RunHeader.scss';
-
 class RunHeader extends Component {
   /* istanbul ignore next */
   copyStatusMessage = () => {
@@ -49,7 +47,10 @@ class RunHeader extends Component {
             return (
               <SkeletonPlaceholder
                 className="tkn--header-skeleton"
-                data-testid="loading"
+                title={intl.formatMessage({
+                  id: 'dashboard.loading',
+                  defaultMessage: 'Loading…'
+                })}
               />
             );
           }

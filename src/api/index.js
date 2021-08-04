@@ -11,8 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { useQuery } from 'react-query';
 import { labels as labelConstants } from '@tektoncd/dashboard-utils';
 
+import { useClusterTask } from './clusterTasks';
+import { useTask } from './tasks';
 import { get, post } from './comms';
 import {
   apiRoot,
@@ -20,9 +23,18 @@ import {
   getKubeAPI,
   getQueryParams,
   getResourcesAPI,
-  getTektonAPI
+  getTektonAPI,
+  isLogTimestampsEnabled,
+  useCollection,
+  useResource
 } from './utils';
 
+export {
+  NamespaceContext,
+  useSelectedNamespace,
+  WebSocketContext
+} from './utils';
+export * from './clusterInterceptors';
 export * from './clusterTasks';
 export * from './clusterTriggerBindings';
 export * from './conditions';
@@ -35,6 +47,7 @@ export * from './serviceAccounts';
 export * from './taskRuns';
 export * from './tasks';
 export * from './triggerBindings';
+export * from './triggers';
 export * from './triggerTemplates';
 
 export function getCustomResources({ filters = [], ...rest }) {
@@ -42,14 +55,41 @@ export function getCustomResources({ filters = [], ...rest }) {
   return get(uri).then(checkData);
 }
 
-export function getCustomResource(...args) {
-  const uri = getResourcesAPI(...args);
+export function getCustomResource(params) {
+  const uri = getResourcesAPI(params);
   return get(uri);
 }
 
-export function getInstallProperties() {
+export function useCustomResource(params) {
+  return useResource('customResource', getCustomResource, params);
+}
+
+export function useTaskByKind({ kind, ...rest }, queryConfig) {
+  if (kind === 'ClusterTask') {
+    return useClusterTask({ ...rest }, queryConfig);
+  }
+  return useTask({ ...rest }, queryConfig);
+}
+
+export async function getInstallProperties() {
   const uri = `${apiRoot}/v1/properties`;
-  return get(uri);
+  let data;
+  try {
+    data = await get(uri);
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      data = {
+        dashboardNamespace: 'N/A',
+        dashboardVersion: 'kubectl-proxy-client',
+        isReadOnly: false,
+        pipelinesNamespace: 'Unknown',
+        pipelinesVersion: 'Unknown',
+        triggersNamespace: 'Unknown',
+        triggersVersion: 'Unknown'
+      };
+    }
+  }
+  return data;
 }
 
 export function getNamespaces() {
@@ -57,10 +97,19 @@ export function getNamespaces() {
   return get(uri).then(checkData);
 }
 
+export function useNamespaces(queryConfig) {
+  return useCollection('Namespace', getNamespaces, null, {
+    select: namespaces => namespaces.map(namespace => namespace.metadata.name),
+    ...queryConfig
+  });
+}
+
 export function getPodLogURL({ container, name, namespace, follow }) {
+  const timestamps = isLogTimestampsEnabled();
   const queryParams = {
     ...(container && { container }),
-    ...(follow && { follow })
+    ...(follow && { follow }),
+    ...(timestamps && { timestamps })
   };
   const uri = `${getKubeAPI(
     'pods',
@@ -72,7 +121,7 @@ export function getPodLogURL({ container, name, namespace, follow }) {
 
 export function getPodLog({ container, name, namespace, stream }) {
   const uri = getPodLogURL({ container, name, namespace, follow: stream });
-  return get(uri, { Accept: 'text/plain' }, { stream });
+  return get(uri, { Accept: 'text/plain,*/*' }, { stream });
 }
 
 /* istanbul ignore next */
@@ -247,4 +296,45 @@ export function getAPIResource({ group, version, type }) {
   return get(uri).then(({ resources }) =>
     resources.find(({ name }) => name === type)
   );
+}
+
+export function useProperties() {
+  return useQuery('properties', getInstallProperties, {
+    placeholderData: { isReadOnly: true }
+  });
+}
+
+export function useDashboardNamespace() {
+  const { data } = useProperties();
+  return data.dashboardNamespace;
+}
+
+export function useExternalLogsURL() {
+  const { data } = useProperties();
+  return data.externalLogsURL;
+}
+
+export function useIsLogStreamingEnabled() {
+  const { data } = useProperties();
+  return data.streamLogs;
+}
+
+export function useIsReadOnly() {
+  const { data } = useProperties();
+  return data.isReadOnly;
+}
+
+export function useIsTriggersInstalled() {
+  const { data } = useProperties();
+  return !!(data.triggersNamespace && data.triggersVersion);
+}
+
+export function useLogoutURL() {
+  const { data } = useProperties();
+  return data.logoutURL;
+}
+
+export function useTenantNamespace() {
+  const { data } = useProperties();
+  return data.tenantNamespace;
 }

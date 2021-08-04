@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -18,52 +18,31 @@ import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
 import { ALL_NAMESPACES, paths, urls } from '@tektoncd/dashboard-utils';
-import {
-  renderWithIntl,
-  renderWithRouter
-} from '@tektoncd/dashboard-components/src/utils/test';
 
+import { render, renderWithRouter } from '../../utils/test';
 import CreatePipelineResource from '.';
 import * as API from '../../api';
+import * as APIUtils from '../../api/utils';
 
 const middleware = [thunk];
 const mockStore = configureStore(middleware);
 
-const pipelineResources = {
-  byNamespace: {},
-  errorMessage: null,
-  isFetching: false
-};
-
-const namespaces = {
-  byName: {
-    default: {
-      metadata: {
-        name: 'default',
-        selfLink: '/api/v1/namespaces/default',
-        uid: '32b35d3b-6ce1-11e9-af21-025000000001',
-        resourceVersion: '4',
-        creationTimestamp: '2019-05-02T13:50:08Z'
-      }
-    }
-  },
-  errorMessage: null,
-  isFetching: false,
-  selected: ALL_NAMESPACES
-};
-
 const store = mockStore({
-  pipelineResources,
-  properties: {},
-  namespaces,
   notifications: {}
 });
 
 describe('CreatePipelineResource', () => {
-  it('renders blank', () => {
-    jest.spyOn(API, 'getNamespaces').mockImplementation(() => []);
+  beforeEach(() => {
+    jest
+      .spyOn(API, 'useNamespaces')
+      .mockImplementation(() => ({ data: ['default'] }));
+    jest
+      .spyOn(APIUtils, 'useSelectedNamespace')
+      .mockImplementation(() => ({ selectedNamespace: ALL_NAMESPACES }));
+  });
 
-    const { queryByText } = renderWithIntl(
+  it('renders blank', () => {
+    const { queryByText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -100,7 +79,7 @@ describe('CreatePipelineResource', () => {
   const revisionValidationErrorRegExp = /Revision required/i;
 
   it('validates all empty inputs', () => {
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -112,8 +91,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it('errors when starting with a "-"', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name starts with a "-"', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -128,8 +107,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it('errors when ends with a "-"', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name ends with a "-"', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -144,8 +123,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it('errors when contains "."', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name contains "."', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -160,8 +139,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it('errors when contains spaces', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name contains spaces', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -176,8 +155,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it('errors when contains capital letters', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name contains capital letters', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -193,7 +172,7 @@ describe('CreatePipelineResource', () => {
   });
 
   it('doesn\'t error when contains "-" in the middle of the name', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -208,8 +187,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it("doesn't error when contains 0", () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it("doesn't error when name contains number", () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -224,24 +203,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it("doesn't error when contains 9", () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
-      <Provider store={store}>
-        <CreatePipelineResource />
-      </Provider>
-    );
-    fireEvent.change(getByPlaceholderText(/pipeline-resource-name/i), {
-      target: { value: 'the-cat-likes-9' }
-    });
-    fireEvent.click(queryByText('Create'));
-    expect(queryByText(nameValidationErrorMsgRegExp)).toBeFalsy();
-    expect(queryByText(namespaceValidationErrorRegExp)).toBeTruthy();
-    expect(queryByText(urlValidationErrorRegExp)).toBeTruthy();
-    expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
-  });
-
-  it('errors when contains 64 characters', () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it('errors when name contains 64 characters', () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -259,8 +222,8 @@ describe('CreatePipelineResource', () => {
     expect(queryByText(revisionValidationErrorRegExp)).toBeTruthy();
   });
 
-  it("doesn't error when contains 63 characters", () => {
-    const { queryByText, getByPlaceholderText } = renderWithIntl(
+  it("doesn't error when name contains 63 characters", () => {
+    const { queryByText, getByPlaceholderText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -278,7 +241,7 @@ describe('CreatePipelineResource', () => {
   });
 
   it("doesn't error when contains a valid namespace", () => {
-    const { queryByText, getByPlaceholderText, getByText } = renderWithIntl(
+    const { queryByText, getByPlaceholderText, getByText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -296,7 +259,7 @@ describe('CreatePipelineResource', () => {
   });
 
   it("doesn't error when a url is entered", () => {
-    const { queryByText, getByPlaceholderText, getByText } = renderWithIntl(
+    const { queryByText, getByPlaceholderText, getByText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -319,7 +282,7 @@ describe('CreatePipelineResource', () => {
   });
 
   it("doesn't error when a revision is entered", () => {
-    const { queryByText, getByPlaceholderText, getByText } = renderWithIntl(
+    const { queryByText, getByPlaceholderText, getByText } = render(
       <Provider store={store}>
         <CreatePipelineResource />
       </Provider>
@@ -333,6 +296,32 @@ describe('CreatePipelineResource', () => {
     fireEvent.change(getByPlaceholderText(/pipeline-resource-revision/i), {
       target: { value: 'the-cat-goes-meow' }
     });
+
+    fireEvent.click(queryByText('Create'));
+    expect(queryByText(nameValidationErrorMsgRegExp)).toBeFalsy();
+    expect(queryByText(namespaceValidationErrorRegExp)).toBeFalsy();
+    expect(queryByText(urlValidationErrorRegExp)).toBeTruthy();
+    expect(queryByText(revisionValidationErrorRegExp)).toBeFalsy();
+  });
+
+  it('handles type change', () => {
+    const { queryByText, getByPlaceholderText, getByText } = render(
+      <Provider store={store}>
+        <CreatePipelineResource />
+      </Provider>
+    );
+    fireEvent.change(getByPlaceholderText(/pipeline-resource-name/i), {
+      target: { value: 'the-cat-goes-meow' }
+    });
+    fireEvent.click(getByPlaceholderText(/select namespace/i));
+    fireEvent.click(getByText(/default/i));
+
+    fireEvent.change(getByPlaceholderText(/pipeline-resource-revision/i), {
+      target: { value: 'the-cat-goes-meow' }
+    });
+
+    fireEvent.click(getByText(/git/i));
+    fireEvent.click(getByText(/image/i));
 
     fireEvent.click(queryByText('Create'));
     expect(queryByText(nameValidationErrorMsgRegExp)).toBeFalsy();

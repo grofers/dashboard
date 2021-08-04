@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -13,7 +13,7 @@ limitations under the License.
 /* istanbul ignore file */
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { render } from '@testing-library/react';
+import { render as baseRender } from '@testing-library/react';
 import { IntlProvider } from 'react-intl';
 
 function RouterWrapper({ children }) {
@@ -28,13 +28,22 @@ function RouterWrapper({ children }) {
 
 export function renderWithRouter(
   ui,
-  { rerender, route = '/', ...otherOptions } = {}
+  {
+    rerender,
+    route = '/',
+    wrapper: Wrapper = React.Fragment,
+    ...otherOptions
+  } = {}
 ) {
   window.history.pushState({}, 'Test page', route);
 
-  return (rerender || render)(ui, {
+  return (rerender || baseRender)(ui, {
     route,
-    wrapper: RouterWrapper,
+    wrapper: ({ children }) => (
+      <Wrapper>
+        <RouterWrapper>{children}</RouterWrapper>
+      </Wrapper>
+    ),
     ...otherOptions
   });
 }
@@ -47,6 +56,15 @@ function IntlWrapper({ children }) {
   );
 }
 
-export function renderWithIntl(ui, { rerender } = {}) {
-  return (rerender || render)(ui, { wrapper: IntlWrapper });
+export function render(
+  ui,
+  { rerender, wrapper: Wrapper = React.Fragment } = {}
+) {
+  return (rerender || baseRender)(ui, {
+    wrapper: ({ children }) => (
+      <Wrapper>
+        <IntlWrapper>{children}</IntlWrapper>
+      </Wrapper>
+    )
+  });
 }

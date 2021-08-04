@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -13,11 +13,9 @@ limitations under the License.
 
 import React from 'react';
 import { fireEvent, getNodeText } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import { renderWithIntl } from '@tektoncd/dashboard-components/src/utils/test';
 
+import { render } from '../../utils/test';
+import * as API from '../../api';
 import NamespacesDropdown from './NamespacesDropdown';
 
 const props = {
@@ -25,123 +23,67 @@ const props = {
   onChange: () => {}
 };
 
-const byName = {
-  'namespace-1': '',
-  'namespace-2': '',
-  'namespace-3': ''
-};
-
-const middleware = [thunk];
-const mockStore = configureStore(middleware);
+const namespaces = ['namespace-1', 'namespace-2', 'namespace-3'];
 
 const initialTextRegExp = new RegExp('select namespace', 'i');
 
-it('NamespacesDropdown renders items based on Redux state', () => {
-  const store = mockStore({
-    namespaces: {
-      byName,
-      isFetching: false
-    },
-    properties: {}
-  });
-  const { getAllByText, getByPlaceholderText, queryByText } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} />
-    </Provider>
+it('NamespacesDropdown renders items', () => {
+  jest
+    .spyOn(API, 'useNamespaces')
+    .mockImplementation(() => ({ data: namespaces }));
+  const { getAllByText, getByPlaceholderText, queryByText } = render(
+    <NamespacesDropdown {...props} />
   );
   fireEvent.click(getByPlaceholderText(initialTextRegExp));
-  Object.keys(byName).forEach(item => {
+  namespaces.forEach(item => {
     expect(queryByText(new RegExp(item, 'i'))).toBeTruthy();
   });
   getAllByText(/namespace-/i).forEach(node => {
-    expect(getNodeText(node) in byName).toBeTruthy();
+    expect(namespaces.includes(getNodeText(node))).toBeTruthy();
   });
 });
 
 it('NamespacesDropdown renders controlled selection', () => {
-  const store = mockStore({
-    namespaces: {
-      byName,
-      isFetching: false
-    },
-    properties: {}
-  });
+  jest
+    .spyOn(API, 'useNamespaces')
+    .mockImplementation(() => ({ data: namespaces }));
   // Select item 'namespace-1'
-  const {
-    queryByPlaceholderText,
-    queryByDisplayValue,
-    rerender
-  } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} selectedItem={{ text: 'namespace-1' }} />
-    </Provider>
+  const { queryByPlaceholderText, queryByDisplayValue, rerender } = render(
+    <NamespacesDropdown {...props} selectedItem={{ text: 'namespace-1' }} />
   );
   expect(queryByDisplayValue(/namespace-1/i)).toBeTruthy();
   // Select item 'namespace-2'
-  renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} selectedItem={{ text: 'namespace-2' }} />
-    </Provider>,
+  render(
+    <NamespacesDropdown {...props} selectedItem={{ text: 'namespace-2' }} />,
     { rerender }
   );
   expect(queryByDisplayValue(/namespace-2/i)).toBeTruthy();
   // No selected item (select item '')
-  renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} selectedItem="" />
-    </Provider>,
-    { rerender }
-  );
+  render(<NamespacesDropdown {...props} selectedItem="" />, { rerender });
   expect(queryByPlaceholderText(initialTextRegExp)).toBeTruthy();
 });
 
 it('NamespacesDropdown renders empty', () => {
-  const store = mockStore({
-    namespaces: {
-      byName: {},
-      isFetching: false
-    },
-    properties: {}
-  });
-
-  const { queryByPlaceholderText } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} />
-    </Provider>
-  );
+  jest.spyOn(API, 'useNamespaces').mockImplementation(() => ({ data: [] }));
+  const { queryByPlaceholderText } = render(<NamespacesDropdown {...props} />);
   expect(queryByPlaceholderText(/no namespaces found/i)).toBeTruthy();
 });
 
 it('NamespacesDropdown renders loading skeleton based on Redux state', () => {
-  const store = mockStore({
-    namespaces: {
-      byName,
-      isFetching: true
-    },
-    properties: {}
-  });
-
-  const { queryByPlaceholderText } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} />
-    </Provider>
-  );
+  jest
+    .spyOn(API, 'useNamespaces')
+    .mockImplementation(() => ({ isFetching: true }));
+  const { queryByPlaceholderText } = render(<NamespacesDropdown {...props} />);
   expect(queryByPlaceholderText(initialTextRegExp)).toBeFalsy();
 });
 
 it('NamespacesDropdown handles onChange event', () => {
-  const store = mockStore({
-    namespaces: {
-      byName,
-      isFetching: false
-    },
-    properties: {}
-  });
+  jest
+    .spyOn(API, 'useNamespaces')
+    .mockImplementation(() => ({ data: namespaces }));
   const onChange = jest.fn();
-  const { getByPlaceholderText, getByText } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} onChange={onChange} />
-    </Provider>
+  const { getByPlaceholderText, getByText } = render(
+    <NamespacesDropdown {...props} onChange={onChange} />
   );
   fireEvent.click(getByPlaceholderText(initialTextRegExp));
   fireEvent.click(getByText(/namespace-1/i));
@@ -149,18 +91,10 @@ it('NamespacesDropdown handles onChange event', () => {
 });
 
 it('NamespacesDropdown renders tenant namespace in single namespace mode', () => {
-  const store = mockStore({
-    namespaces: {
-      byName: {}
-    },
-    properties: {
-      TenantNamespace: 'fake'
-    }
-  });
-  const { getByPlaceholderText, getByText } = renderWithIntl(
-    <Provider store={store}>
-      <NamespacesDropdown {...props} />
-    </Provider>
+  jest.spyOn(API, 'useTenantNamespace').mockImplementation(() => 'fake');
+  jest.spyOn(API, 'useNamespaces').mockImplementation(() => ({ data: [] }));
+  const { getByPlaceholderText, getByText } = render(
+    <NamespacesDropdown {...props} />
   );
   fireEvent.click(getByPlaceholderText(initialTextRegExp));
   expect(getByText(/fake/i)).toBeTruthy();

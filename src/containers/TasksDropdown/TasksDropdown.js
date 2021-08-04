@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Tekton Authors
+Copyright 2020-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,91 +14,70 @@ limitations under the License.
 import React from 'react';
 import { injectIntl } from 'react-intl';
 import { connect } from 'react-redux';
-import { ALL_NAMESPACES } from '@tektoncd/dashboard-utils';
+import {
+  ALL_NAMESPACES,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
 import { TooltipDropdown } from '@tektoncd/dashboard-components';
 
-import {
-  getSelectedNamespace,
-  getTasks,
-  isFetchingTasks,
-  isWebSocketConnected
-} from '../../reducers';
-import { fetchTasks } from '../../actions/tasks';
+import { isWebSocketConnected } from '../../reducers';
+import { useSelectedNamespace, useTasks } from '../../api';
 
-class TasksDropdown extends React.Component {
-  componentDidMount() {
-    const { namespace } = this.props;
-    this.props.fetchTasks({ namespace });
-  }
+function TasksDropdown({
+  intl,
+  label,
+  namespace: namespaceProp,
+  webSocketConnected,
+  ...rest
+}) {
+  const { selectedNamespace } = useSelectedNamespace();
+  const namespace = namespaceProp || selectedNamespace;
 
-  componentDidUpdate(prevProps) {
-    const { namespace, webSocketConnected } = this.props;
-    const { webSocketConnected: prevWebSocketConnected } = prevProps;
-    if (
-      namespace !== prevProps.namespace ||
-      (webSocketConnected && prevWebSocketConnected === false)
-    ) {
-      this.props.fetchTasks({ namespace });
-    }
-  }
+  const { data: tasks = [], isFetching, refetch } = useTasks({ namespace });
+  useWebSocketReconnected(refetch, webSocketConnected);
 
-  render() {
-    const {
-      fetchTasks: _fetchTasks,
-      intl,
-      label,
-      namespace,
-      webSocketConnected,
-      ...rest
-    } = this.props;
-    const emptyText =
-      namespace === ALL_NAMESPACES
-        ? intl.formatMessage({
-            id: 'dashboard.tasksDropdown.empty.allNamespaces',
-            defaultMessage: 'No Tasks found'
-          })
-        : intl.formatMessage(
-            {
-              id: 'dashboard.tasksDropdown.empty.selectedNamespace',
-              defaultMessage: "No Tasks found in the ''{namespace}'' namespace"
-            },
-            { namespace }
-          );
+  const items = tasks.map(task => task.metadata.name);
 
-    const labelString =
-      label ||
-      intl.formatMessage({
-        id: 'dashboard.tasksDropdown.label',
-        defaultMessage: 'Select Task'
-      });
+  const emptyText =
+    namespace === ALL_NAMESPACES
+      ? intl.formatMessage({
+          id: 'dashboard.tasksDropdown.empty.allNamespaces',
+          defaultMessage: 'No Tasks found'
+        })
+      : intl.formatMessage(
+          {
+            id: 'dashboard.tasksDropdown.empty.selectedNamespace',
+            defaultMessage: "No Tasks found in the ''{namespace}'' namespace"
+          },
+          { namespace }
+        );
 
-    return (
-      <TooltipDropdown {...rest} emptyText={emptyText} label={labelString} />
-    );
-  }
+  const labelString =
+    label ||
+    intl.formatMessage({
+      id: 'dashboard.tasksDropdown.label',
+      defaultMessage: 'Select Task'
+    });
+
+  return (
+    <TooltipDropdown
+      {...rest}
+      emptyText={emptyText}
+      items={items}
+      label={labelString}
+      loading={isFetching}
+    />
+  );
 }
 
 TasksDropdown.defaultProps = {
-  items: [],
-  loading: false,
   titleText: 'Task'
 };
 
-function mapStateToProps(state, ownProps) {
-  const namespace = ownProps.namespace || getSelectedNamespace(state);
+function mapStateToProps(state) {
   return {
-    items: getTasks(state, { namespace }).map(task => task.metadata.name),
-    loading: isFetchingTasks(state),
-    namespace,
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchTasks
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(TasksDropdown));
+export default connect(mapStateToProps)(injectIntl(TasksDropdown));

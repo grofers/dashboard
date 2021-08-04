@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -16,10 +16,12 @@ import { fireEvent, getNodeText } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
-import { renderWithIntl } from '@tektoncd/dashboard-components/src/utils/test';
+import { render } from '../../utils/test';
 
 import ServiceAccountsDropdown from './ServiceAccountsDropdown';
-import * as API from '../../api/serviceAccounts';
+import * as API from '../../api';
+import * as APIUtils from '../../api/utils';
+import * as ServiceAccountsAPI from '../../api/serviceAccounts';
 
 const props = {
   id: 'service-accounts-dropdown',
@@ -36,62 +38,27 @@ const serviceAccountsByNamespace = {
   }
 };
 
-const serviceAccountsById = {
-  'id-service-account-1': {
-    metadata: {
-      name: 'service-account-1',
-      namespace: 'blue',
-      uid: 'id-service-account-1'
-    }
-  },
-  'id-service-account-2': {
-    metadata: {
-      name: 'service-account-2',
-      namespace: 'blue',
-      uid: 'id-service-account-2'
-    }
-  },
-  'id-service-account-3': {
-    metadata: {
-      name: 'service-account-3',
-      namespace: 'green',
-      uid: 'id-service-account-3'
-    }
+const serviceAccount1 = {
+  metadata: {
+    name: 'service-account-1',
+    namespace: 'blue',
+    uid: 'id-service-account-1'
   }
 };
 
-const serviceAccountsStoreDefault = {
-  serviceAccounts: {
-    byId: serviceAccountsById,
-    byNamespace: serviceAccountsByNamespace,
-    isFetching: false
+const serviceAccount2 = {
+  metadata: {
+    name: 'service-account-2',
+    namespace: 'blue',
+    uid: 'id-service-account-2'
   }
 };
 
-const serviceAccountsStoreFetching = {
-  serviceAccounts: {
-    byId: serviceAccountsById,
-    byNamespace: serviceAccountsByNamespace,
-    isFetching: true
-  }
-};
-
-const namespacesByName = {
-  blue: '',
-  green: ''
-};
-
-const namespacesStoreBlue = {
-  namespaces: {
-    byName: namespacesByName,
-    selected: 'blue'
-  }
-};
-
-const namespacesStoreGreen = {
-  namespaces: {
-    byName: namespacesByName,
-    selected: 'green'
+const serviceAccount3 = {
+  metadata: {
+    name: 'service-account-3',
+    namespace: 'green',
+    uid: 'id-service-account-3'
   }
 };
 
@@ -117,17 +84,23 @@ const mockStore = configureStore(middleware);
 describe('ServiceAccountsDropdown', () => {
   beforeEach(() => {
     jest
-      .spyOn(API, 'getServiceAccounts')
-      .mockImplementation(() => serviceAccountsById);
+      .spyOn(API, 'useNamespaces')
+      .mockImplementation(() => ({ data: ['blue', 'green'] }));
+    jest
+      .spyOn(APIUtils, 'useSelectedNamespace')
+      .mockImplementation(() => ({ selectedNamespace: 'blue' }));
   });
 
-  it('renders items based on Redux state', () => {
+  it('renders items', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(() => ({
+        data: [serviceAccount1, serviceAccount2]
+      }));
     const store = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreBlue,
       notifications: {}
     });
-    const { getByPlaceholderText, getAllByText, queryByText } = renderWithIntl(
+    const { getByPlaceholderText, getAllByText, queryByText } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} />
       </Provider>
@@ -141,64 +114,17 @@ describe('ServiceAccountsDropdown', () => {
     });
   });
 
-  it('renders items based on Redux state when namespace changes', () => {
-    const blueStore = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreBlue,
-      notifications: {}
-    });
-    const {
-      getByPlaceholderText,
-      getAllByText,
-      queryByText,
-      rerender
-    } = renderWithIntl(
-      <Provider store={blueStore}>
-        <ServiceAccountsDropdown {...props} />
-      </Provider>
-    );
-    // View items
-    fireEvent.click(getByPlaceholderText(initialTextRegExp));
-    checkDropdownItems({
-      getAllByText,
-      queryByText,
-      testDict: serviceAccountsByNamespace.blue
-    });
-    fireEvent.click(getByPlaceholderText(initialTextRegExp));
-
-    // Change selected namespace from 'blue' to 'green'
-    const greenStore = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreGreen,
-      notifications: {}
-    });
-    renderWithIntl(
-      <Provider store={greenStore}>
-        <ServiceAccountsDropdown {...props} />
-      </Provider>,
-      { rerender }
-    );
-    // View items
-    fireEvent.click(getByPlaceholderText(initialTextRegExp));
-    checkDropdownItems({
-      getAllByText,
-      queryByText,
-      testDict: serviceAccountsByNamespace.green
-    });
-  });
-
   it('renders controlled selection', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(() => ({
+        data: [serviceAccount1, serviceAccount2]
+      }));
     const store = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreBlue,
       notifications: {}
     });
     // Select item 'service-account-1'
-    const {
-      queryByPlaceholderText,
-      queryByDisplayValue,
-      rerender
-    } = renderWithIntl(
+    const { queryByPlaceholderText, queryByDisplayValue, rerender } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown
           {...props}
@@ -208,7 +134,7 @@ describe('ServiceAccountsDropdown', () => {
     );
     expect(queryByDisplayValue(/service-account-1/i)).toBeTruthy();
     // Select item 'service-account-2'
-    renderWithIntl(
+    render(
       <Provider store={store}>
         <ServiceAccountsDropdown
           {...props}
@@ -219,7 +145,7 @@ describe('ServiceAccountsDropdown', () => {
     );
     expect(queryByDisplayValue(/service-account-2/i)).toBeTruthy();
     // No selected item (select item '')
-    renderWithIntl(
+    render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} selectedItem="" />
       </Provider>,
@@ -229,13 +155,16 @@ describe('ServiceAccountsDropdown', () => {
   });
 
   it('renders controlled namespace', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(({ namespace }) => ({
+        data: namespace === 'green' ? [serviceAccount3] : []
+      }));
     const store = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreBlue,
       notifications: {}
     });
     // Select namespace 'green'
-    const { queryByText, getByPlaceholderText, getAllByText } = renderWithIntl(
+    const { queryByText, getByPlaceholderText, getAllByText } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} namespace="green" />
       </Provider>
@@ -249,17 +178,14 @@ describe('ServiceAccountsDropdown', () => {
   });
 
   it('renders empty', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(() => ({ data: [] }));
     const store = mockStore({
-      serviceAccounts: {
-        byId: {},
-        byNamespace: {},
-        isFetching: false
-      },
-      ...namespacesStoreBlue,
       notifications: {}
     });
     // Select item 'service-account-1'
-    const { queryByPlaceholderText } = renderWithIntl(
+    const { queryByPlaceholderText } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} />
       </Provider>
@@ -273,12 +199,13 @@ describe('ServiceAccountsDropdown', () => {
   });
 
   it('renders loading skeleton based on Redux state', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(() => ({ isFetching: true }));
     const store = mockStore({
-      ...serviceAccountsStoreFetching,
-      ...namespacesStoreBlue,
       notifications: {}
     });
-    const { queryByText } = renderWithIntl(
+    const { queryByText } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} />
       </Provider>
@@ -287,13 +214,16 @@ describe('ServiceAccountsDropdown', () => {
   });
 
   it('handles onChange event', () => {
+    jest
+      .spyOn(ServiceAccountsAPI, 'useServiceAccounts')
+      .mockImplementation(() => ({
+        data: [serviceAccount1, serviceAccount2]
+      }));
     const store = mockStore({
-      ...serviceAccountsStoreDefault,
-      ...namespacesStoreBlue,
       notifications: {}
     });
     const onChange = jest.fn();
-    const { getByPlaceholderText, getByText } = renderWithIntl(
+    const { getByPlaceholderText, getByText } = render(
       <Provider store={store}>
         <ServiceAccountsDropdown {...props} onChange={onChange} />
       </Provider>

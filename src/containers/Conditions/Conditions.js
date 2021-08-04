@@ -11,41 +11,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { injectIntl } from 'react-intl';
-import { getFilters, getTitle, urls } from '@tektoncd/dashboard-utils';
-import { FormattedDate, Table } from '@tektoncd/dashboard-components';
-
-import { ListPageLayout } from '..';
-import { fetchConditions as fetchConditionsActionCreator } from '../../actions/conditions';
 import {
-  getConditions,
-  getConditionsErrorMessage,
-  getSelectedNamespace,
-  isFetchingConditions as selectIsFetchingConditions,
-  isWebSocketConnected as selectIsWebSocketConnected
-} from '../../reducers';
+  getFilters,
+  urls,
+  useTitleSync,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
+import { FormattedDate, Table } from '@tektoncd/dashboard-components';
+import { Link as CarbonLink } from 'carbon-components-react';
+
+import { useConditions, useSelectedNamespace } from '../../api';
+import { ListPageLayout } from '..';
+import { isWebSocketConnected as selectIsWebSocketConnected } from '../../reducers';
 
 function Conditions(props) {
-  const {
-    conditions,
-    error,
-    fetchConditions,
-    filters,
-    intl,
-    loading,
-    namespace,
-    webSocketConnected
-  } = props;
-  useEffect(() => {
-    document.title = getTitle({ page: 'Conditions' });
-  }, []);
+  const { filters, intl, webSocketConnected } = props;
+  useTitleSync({ page: 'Conditions' });
 
-  useEffect(() => {
-    fetchConditions({ filters, namespace });
-  }, [JSON.stringify(filters), namespace, webSocketConnected]);
+  const { selectedNamespace } = useSelectedNamespace();
+  const { namespace = selectedNamespace } = props.match.params;
+
+  const { data: conditions = [], error, isLoading, refetch } = useConditions({
+    filters,
+    namespace
+  });
+
+  useWebSocketReconnected(refetch, webSocketConnected);
 
   function getError() {
     if (error) {
@@ -86,6 +81,7 @@ function Conditions(props) {
     id: condition.metadata.uid,
     name: (
       <Link
+        component={CarbonLink}
         to={urls.conditions.byName({
           namespace: condition.metadata.namespace,
           conditionName: condition.metadata.name
@@ -106,7 +102,7 @@ function Conditions(props) {
       <Table
         headers={headers}
         rows={conditionsFormatted}
-        loading={loading && !conditionsFormatted.length}
+        loading={isLoading}
         selectedNamespace={namespace}
         emptyTextAllNamespaces={intl.formatMessage(
           {
@@ -130,25 +126,12 @@ function Conditions(props) {
 
 /* istanbul ignore next */
 function mapStateToProps(state, props) {
-  const { namespace: namespaceParam } = props.match.params;
-  const namespace = namespaceParam || getSelectedNamespace(state);
   const filters = getFilters(props.location);
 
   return {
-    conditions: getConditions(state, { filters, namespace }),
-    error: getConditionsErrorMessage(state),
     filters,
-    loading: selectIsFetchingConditions(state),
-    namespace,
     webSocketConnected: selectIsWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchConditions: fetchConditionsActionCreator
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(Conditions));
+export default connect(mapStateToProps)(injectIntl(Conditions));

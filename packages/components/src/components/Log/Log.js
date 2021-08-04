@@ -12,13 +12,19 @@ limitations under the License.
 */
 
 import React, { Component } from 'react';
-import { SkeletonText } from 'carbon-components-react';
+import { Button, SkeletonText } from 'carbon-components-react';
 import { FixedSizeList as List } from 'react-window';
 import { injectIntl } from 'react-intl';
+import { getStepStatusReason, isRunning } from '@tektoncd/dashboard-utils';
+import { DownToBottom16, UpToTop16 } from '@carbon/icons-react';
+import {
+  hasElementPositiveVerticalScrollBottom,
+  hasElementPositiveVerticalScrollTop,
+  isElementEndBelowViewBottom,
+  isElementStartAboveViewTop
+} from './domUtils';
 
 import Ansi from '../LogFormat';
-
-import './Log.scss';
 
 const LogLine = ({ data, index, style }) => (
   <div style={style}>
@@ -30,16 +36,210 @@ const itemSize = 15; // This should be kept in sync with the line-height in SCSS
 const defaultHeight = itemSize * 100 + itemSize / 2;
 
 export class LogContainer extends Component {
-  state = { loading: true };
+  constructor(props) {
+    super(props);
+    this.state = { loading: true };
+    this.logRef = React.createRef();
+    this.textRef = React.createRef();
+  }
 
   componentDidMount() {
     this.loadLog();
+    if (this.props.enableLogAutoScroll || this.props.enableLogScrollButtons) {
+      this.wasRunningAfterMounting();
+      window.addEventListener('scroll', this.handleLogScroll, true);
+      this.handleLogScroll();
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (
+      (this.props.enableLogAutoScroll || this.props.enableLogScrollButtons) &&
+      (prevState.logs?.length !== this.state.logs?.length ||
+        prevProps.isLogsMaximized !== this.props.isLogsMaximized)
+    ) {
+      if (this.shouldAutoScroll()) {
+        this.scrollToBottomLog();
+        return;
+      }
+      this.handleLogScroll();
+    }
   }
 
   componentWillUnmount() {
+    window.removeEventListener('scroll', this.handleLogScroll, true);
     clearInterval(this.timer);
     this.cancelled = true;
   }
+
+  handleLogScroll = () => {
+    if (!this.state.loading) {
+      const isLogBottomUnseen = this.isLogBottomUnseen();
+      const isLogTopUnseen =
+        this.props.enableLogScrollButtons && this.isLogTopUnseen();
+      this.updateScrollButtonCoordinates();
+
+      if (
+        isLogBottomUnseen !== this.state.isLogBottomUnseen ||
+        (this.props.enableLogScrollButtons &&
+          isLogTopUnseen !== this.state.isLogTopUnseen)
+      ) {
+        this.setState({
+          isLogBottomUnseen,
+          isLogTopUnseen
+        });
+      }
+    }
+  };
+
+  shouldAutoScroll = () => {
+    return (
+      this.props.enableLogAutoScroll &&
+      this.state.isLogBottomUnseen === false &&
+      this.wasRunningAfterMounting() &&
+      this.isLogBottomUnseen()
+    );
+  };
+
+  isLogBottomUnseen = () => {
+    return (
+      isElementEndBelowViewBottom(this.logRef?.current) ||
+      hasElementPositiveVerticalScrollBottom(
+        this.textRef?.current?.firstElementChild
+      )
+    );
+  };
+
+  isLogTopUnseen = () => {
+    return (
+      isElementStartAboveViewTop(this.logRef?.current) ||
+      hasElementPositiveVerticalScrollTop(
+        this.textRef?.current?.firstElementChild
+      )
+    );
+  };
+
+  scrollToBottomLog = () => {
+    const longTextElement = this.textRef?.current?.firstElementChild;
+    if (longTextElement) {
+      longTextElement.scrollTop =
+        longTextElement.scrollHeight - longTextElement.clientHeight;
+    }
+    const rootElement = document.documentElement;
+    rootElement.scrollTop = rootElement.scrollHeight - rootElement.clientHeight;
+  };
+
+  scrollToTopLog = () => {
+    const longTextElement = this.textRef?.current?.firstElementChild;
+    if (longTextElement) {
+      longTextElement.scrollTop = 0;
+    }
+    document.documentElement.scrollTop = 0;
+  };
+
+  wasRunningAfterMounting = () => {
+    if (this.alreadyWasRunningAfterMounting) {
+      return true;
+    }
+    const { reason, status } = getStepStatusReason(this.props.stepStatus);
+    if (isRunning(reason, status)) {
+      // alreadyWasRunningAfterMounting is a class variable instead of state variable because a change in its value does not require a subsequent re-rendering
+      this.alreadyWasRunningAfterMounting = true;
+      return true;
+    }
+    return false;
+  };
+
+  updateScrollButtonCoordinates = () => {
+    if (this.props.enableLogScrollButtons) {
+      const logRectangle = this.logRef.current?.getBoundingClientRect();
+      const logElementRight =
+        document.documentElement?.clientWidth - logRectangle.right;
+
+      const scrollButtonTop = Math.max(0, logRectangle.top);
+
+      const scrollButtonBottom = Math.max(
+        0,
+        document.documentElement?.clientHeight - logRectangle.bottom
+      );
+
+      this.updateCssStyleProperty(logElementRight, '--tkn-log-element-right');
+      this.updateCssStyleProperty(scrollButtonTop, '--tkn-scroll-button-top');
+      this.updateCssStyleProperty(
+        scrollButtonBottom,
+        '--tkn-scroll-button-bottom'
+      );
+    }
+  };
+
+  updateCssStyleProperty = (computedVariable, variableName) => {
+    // instead of using a state variable + inline styling for the button vertical position,
+    // a class variable + css custom property are used (avoiding unnecessary re-rendering of entire component)
+    if (
+      !Number.isNaN(computedVariable) &&
+      this[variableName] !== computedVariable
+    ) {
+      this[variableName] = computedVariable;
+      document.documentElement?.style.setProperty(
+        variableName,
+        `${computedVariable.toString()}px`
+      );
+    }
+  };
+
+  getScrollButtons = () => {
+    const { enableLogScrollButtons, intl } = this.props;
+    const { isLogBottomUnseen, isLogTopUnseen, loading } = this.state;
+
+    if (!enableLogScrollButtons || loading) {
+      return null;
+    }
+    const scrollButtonTopMessage = intl.formatMessage({
+      id: 'dashboard.logs.scrollToTop',
+      defaultMessage: 'Scroll to start of logs'
+    });
+    const scrollButtonBottomMessage = intl.formatMessage({
+      id: 'dashboard.logs.scrollToBottom',
+      defaultMessage: 'Scroll to end of logs'
+    });
+
+    return (
+      <div className="button-container">
+        {isLogTopUnseen ? (
+          <Button
+            className="bx--copy-btn"
+            hasIconOnly
+            iconDescription={scrollButtonTopMessage}
+            id="log-scroll-to-top-btn"
+            onClick={this.scrollToTopLog}
+            renderIcon={() => (
+              <UpToTop16>
+                <title>{scrollButtonTopMessage}</title>
+              </UpToTop16>
+            )}
+            size="sm"
+            tooltipPosition="right"
+          />
+        ) : null}
+        {isLogBottomUnseen ? (
+          <Button
+            className="bx--copy-btn"
+            iconDescription={scrollButtonBottomMessage}
+            hasIconOnly
+            id="log-scroll-to-bottom-btn"
+            onClick={this.scrollToBottomLog}
+            renderIcon={() => (
+              <DownToBottom16>
+                <title>{scrollButtonBottomMessage}</title>
+              </DownToBottom16>
+            )}
+            size="sm"
+            tooltipPosition="right"
+          />
+        ) : null}
+      </div>
+    );
+  };
 
   getLogList = () => {
     const { stepStatus, intl } = this.props;
@@ -75,7 +275,14 @@ export class LogContainer extends Component {
   };
 
   getTrailerMessage = trailer => {
-    const { intl } = this.props;
+    const { forcePolling, intl } = this.props;
+
+    if (trailer && forcePolling) {
+      return intl.formatMessage({
+        id: 'dashboard.logs.pending',
+        defaultMessage: 'Final logs pending'
+      });
+    }
 
     switch (trailer) {
       case 'Completed':
@@ -123,14 +330,20 @@ export class LogContainer extends Component {
   };
 
   loadLog = async () => {
-    const { fetchLogs, intl, stepStatus, pollingInterval } = this.props;
+    const {
+      fetchLogs,
+      forcePolling,
+      intl,
+      stepStatus,
+      pollingInterval
+    } = this.props;
     if (!fetchLogs) {
       return;
     }
 
     let continuePolling = false;
     try {
-      continuePolling = stepStatus && !stepStatus.terminated;
+      continuePolling = forcePolling || (stepStatus && !stepStatus.terminated);
       const logs = await fetchLogs();
       if (logs?.getReader) {
         // logs is a https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
@@ -169,7 +382,7 @@ export class LogContainer extends Component {
   };
 
   logTrailer = () => {
-    const { stepStatus } = this.props;
+    const { forcePolling, stepStatus } = this.props;
     const { reason } = (stepStatus && stepStatus.terminated) || {};
     const trailer = this.getTrailerMessage(reason);
     if (!trailer) {
@@ -177,7 +390,10 @@ export class LogContainer extends Component {
     }
 
     return (
-      <div className="tkn--log-trailer" data-status={reason}>
+      <div
+        className="tkn--log-trailer"
+        data-status={reason && (forcePolling ? 'LogsPending' : reason)}
+      >
         {trailer}
       </div>
     );
@@ -187,14 +403,17 @@ export class LogContainer extends Component {
     const { toolbar } = this.props;
     const { loading } = this.state;
     return (
-      <pre className="tkn--log">
+      <pre className="tkn--log" ref={this.logRef}>
         {loading ? (
           <SkeletonText paragraph width="60%" />
         ) : (
           <>
             {toolbar}
-            <div className="tkn--log-container">{this.getLogList()}</div>
+            <div className="tkn--log-container" ref={this.textRef}>
+              {this.getLogList()}
+            </div>
             {this.logTrailer()}
+            {this.getScrollButtons()}
           </>
         )}
       </pre>

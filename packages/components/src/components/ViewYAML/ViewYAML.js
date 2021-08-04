@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,31 +15,63 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import jsYaml from 'js-yaml';
 import classNames from 'classnames';
+import { Prism as SyntaxHighlight } from 'react-syntax-highlighter';
 
-import './ViewYAML.scss';
-
-const ViewYAML = props => {
-  const { className, dark, resource } = props;
-
+function YAMLHighlighter({ children, className }) {
   return (
-    <div
-      className={classNames('bx--snippet--multi', className, {
-        'tkn--view-yaml--dark': dark
-      })}
+    <SyntaxHighlight
+      className={className}
+      language="yaml"
+      useInlineStyles={false}
+      codeTagProps={{}}
     >
+      {children}
+    </SyntaxHighlight>
+  );
+}
+
+function YAMLRaw({ children, className }) {
+  return (
+    <div className={className}>
       <code>
-        <pre>{jsYaml.dump(resource)}</pre>
+        <pre>{children}</pre>
       </code>
     </div>
   );
-};
+}
+
+function ViewYAML({
+  className,
+  dark,
+  enableSyntaxHighlighting,
+  resource,
+  title
+}) {
+  const clz = classNames('bx--snippet--multi', className, {
+    'tkn--view-yaml--dark': dark
+  });
+  const yaml = jsYaml.dump(resource);
+  const Wrapper = enableSyntaxHighlighting ? YAMLHighlighter : YAMLRaw;
+
+  return (
+    <>
+      {title && <span className="tkn--view-yaml--title">{title}</span>}
+      <Wrapper className={clz}>{yaml}</Wrapper>
+    </>
+  );
+}
 
 ViewYAML.propTypes = {
   resource: PropTypes.oneOfType([
     PropTypes.array,
     PropTypes.shape({}),
     PropTypes.string
-  ]).isRequired
+  ]).isRequired,
+  enableSyntaxHighlighting: PropTypes.bool
+};
+
+ViewYAML.defaultProps = {
+  enableSyntaxHighlighting: false
 };
 
 export default ViewYAML;

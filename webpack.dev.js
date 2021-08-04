@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,18 +15,21 @@ const { merge } = require('webpack-merge');
 const common = require('./webpack.common.js');
 const { API_DOMAIN, PORT } = require('./config_frontend/config.json');
 
-const extensionConfig = {
-  '/v1/extensions': {
-    target: 'http://localhost:9999',
-    pathRewrite: { '^/v1/extensions': '' }
-  },
-  '/v1/extensions/dev-extension': {
-    target: 'http://localhost:9999',
-    pathRewrite: { '^/v1/extensions/dev-extension': '' }
-  }
-};
-
 const mode = 'development';
+const customAPIDomain = process.env.API_DOMAIN;
+
+const proxyOptions = {
+  changeOrigin: !!customAPIDomain,
+  onError(err) {
+    console.warn('webpack-dev-server proxy error:', err); // eslint-disable-line no-console
+  },
+  onProxyReqWs(proxyReq, req, socket, _options, _head) {
+    socket.on('error', function handleProxyWSError(_err) {});
+  },
+  secure: false,
+  target: customAPIDomain || API_DOMAIN,
+  ws: true
+};
 
 module.exports = merge(common({ mode }), {
   mode,
@@ -38,16 +41,11 @@ module.exports = merge(common({ mode }), {
     overlay: true,
     port: process.env.PORT || PORT,
     proxy: {
-      ...(process.env.EXTENSIONS_LOCAL_DEV ? extensionConfig : {}),
       '/v1': {
-        secure: false,
-        target: process.env.API_DOMAIN || API_DOMAIN,
-        ws: true
+        ...proxyOptions
       },
       '/proxy': {
-        secure: false,
-        target: process.env.API_DOMAIN || API_DOMAIN,
-        ws: true
+        ...proxyOptions
       }
     }
   },

@@ -11,49 +11,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Component } from 'react';
+import React from 'react';
 import { connect } from 'react-redux';
-import isEqual from 'lodash.isequal';
 import { Link } from 'react-router-dom';
 import { injectIntl } from 'react-intl';
-import { getFilters, getTitle, urls } from '@tektoncd/dashboard-utils';
+import {
+  getFilters,
+  urls,
+  useTitleSync,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
 import { FormattedDate, Table } from '@tektoncd/dashboard-components';
+import { Link as CarbonLink } from 'carbon-components-react';
 
 import { ListPageLayout } from '..';
-import { fetchEventListeners } from '../../actions/eventListeners';
-import {
-  getEventListeners,
-  getEventListenersErrorMessage,
-  getSelectedNamespace,
-  isFetchingEventListeners,
-  isWebSocketConnected
-} from '../../reducers';
+import { useEventListeners, useSelectedNamespace } from '../../api';
+import { isWebSocketConnected } from '../../reducers';
 
-export /* istanbul ignore next */ class EventListeners extends Component {
-  componentDidMount() {
-    document.title = getTitle({ page: 'EventListeners' });
-    this.fetchEventListeners();
-  }
+function EventListeners(props) {
+  const { filters, intl, webSocketConnected } = props;
 
-  componentDidUpdate(prevProps) {
-    const { filters, namespace, webSocketConnected } = this.props;
-    const {
-      filters: prevFilters,
-      namespace: prevNamespace,
-      webSocketConnected: prevWebSocketConnected
-    } = prevProps;
+  useTitleSync({ page: 'EventListeners' });
 
-    if (
-      !isEqual(filters, prevFilters) ||
-      namespace !== prevNamespace ||
-      (webSocketConnected && prevWebSocketConnected === false)
-    ) {
-      this.fetchEventListeners();
-    }
-  }
+  const { selectedNamespace: defaultNamespace } = useSelectedNamespace();
+  const {
+    namespace: selectedNamespace = defaultNamespace
+  } = props.match.params;
 
-  getError() {
-    const { error } = this.props;
+  const {
+    data: eventListeners = [],
+    error,
+    isLoading,
+    refetch
+  } = useEventListeners({ filters, namespace: selectedNamespace });
+
+  useWebSocketReconnected(refetch, webSocketConnected);
+
+  function getError() {
     if (error) {
       return { error };
     }
@@ -61,109 +55,79 @@ export /* istanbul ignore next */ class EventListeners extends Component {
     return null;
   }
 
-  fetchEventListeners() {
-    const { filters, namespace } = this.props;
-    this.props.fetchEventListeners({
-      filters,
-      namespace
-    });
-  }
+  const initialHeaders = [
+    {
+      key: 'name',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.name',
+        defaultMessage: 'Name'
+      })
+    },
+    {
+      key: 'namespace',
+      header: 'Namespace'
+    },
+    {
+      key: 'date',
+      header: intl.formatMessage({
+        id: 'dashboard.tableHeader.createdTime',
+        defaultMessage: 'Created'
+      })
+    }
+  ];
 
-  render() {
-    const { intl, loading, selectedNamespace, eventListeners } = this.props;
-
-    const initialHeaders = [
-      {
-        key: 'name',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.name',
-          defaultMessage: 'Name'
-        })
-      },
-      {
-        key: 'namespace',
-        header: 'Namespace'
-      },
-      {
-        key: 'date',
-        header: intl.formatMessage({
-          id: 'dashboard.tableHeader.createdTime',
-          defaultMessage: 'Created'
-        })
-      }
-    ];
-
-    const eventListenersFormatted = eventListeners.map(listener => ({
-      id: `${listener.metadata.namespace}:${listener.metadata.name}`,
-      name: (
-        <Link
-          to={urls.eventListeners.byName({
-            namespace: listener.metadata.namespace,
-            eventListenerName: listener.metadata.name
-          })}
-          title={listener.metadata.name}
-        >
-          {listener.metadata.name}
-        </Link>
-      ),
-      namespace: listener.metadata.namespace,
-      date: (
-        <FormattedDate date={listener.metadata.creationTimestamp} relative />
-      )
-    }));
-
-    return (
-      <ListPageLayout
-        {...this.props}
-        error={this.getError()}
-        title="EventListeners"
+  const eventListenersFormatted = eventListeners.map(listener => ({
+    id: `${listener.metadata.namespace}:${listener.metadata.name}`,
+    name: (
+      <Link
+        component={CarbonLink}
+        to={urls.eventListeners.byName({
+          namespace: listener.metadata.namespace,
+          eventListenerName: listener.metadata.name
+        })}
+        title={listener.metadata.name}
       >
-        <Table
-          headers={initialHeaders}
-          rows={eventListenersFormatted}
-          loading={loading && !eventListenersFormatted.length}
-          selectedNamespace={selectedNamespace}
-          emptyTextAllNamespaces={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.allNamespaces',
-              defaultMessage: 'No matching {kind} found'
-            },
-            { kind: 'EventListeners' }
-          )}
-          emptyTextSelectedNamespace={intl.formatMessage(
-            {
-              id: 'dashboard.emptyState.selectedNamespace',
-              defaultMessage:
-                'No matching {kind} found in namespace {selectedNamespace}'
-            },
-            { kind: 'EventListeners', selectedNamespace }
-          )}
-        />
-      </ListPageLayout>
-    );
-  }
+        {listener.metadata.name}
+      </Link>
+    ),
+    namespace: listener.metadata.namespace,
+    date: <FormattedDate date={listener.metadata.creationTimestamp} relative />
+  }));
+
+  return (
+    <ListPageLayout {...props} error={getError()} title="EventListeners">
+      <Table
+        headers={initialHeaders}
+        rows={eventListenersFormatted}
+        loading={isLoading}
+        selectedNamespace={selectedNamespace}
+        emptyTextAllNamespaces={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.allNamespaces',
+            defaultMessage: 'No matching {kind} found'
+          },
+          { kind: 'EventListeners' }
+        )}
+        emptyTextSelectedNamespace={intl.formatMessage(
+          {
+            id: 'dashboard.emptyState.selectedNamespace',
+            defaultMessage:
+              'No matching {kind} found in namespace {selectedNamespace}'
+          },
+          { kind: 'EventListeners', selectedNamespace }
+        )}
+      />
+    </ListPageLayout>
+  );
 }
 
 function mapStateToProps(state, props) {
-  const { namespace: namespaceParam } = props.match.params;
   const filters = getFilters(props.location);
-  const namespace = namespaceParam || getSelectedNamespace(state);
 
   return {
-    error: getEventListenersErrorMessage(state),
     filters,
-    loading: isFetchingEventListeners(state),
-    eventListeners: getEventListeners(state, { filters, namespace }),
-    selectedNamespace: namespace,
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchEventListeners
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(EventListeners));
+export default connect(mapStateToProps)(injectIntl(EventListeners));

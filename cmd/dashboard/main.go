@@ -14,7 +14,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -23,7 +22,6 @@ import (
 
 	dashboardclientset "github.com/tektoncd/dashboard/pkg/client/clientset/versioned"
 	"github.com/tektoncd/dashboard/pkg/controllers"
-	"github.com/tektoncd/dashboard/pkg/csrf"
 	"github.com/tektoncd/dashboard/pkg/endpoints"
 	"github.com/tektoncd/dashboard/pkg/logging"
 	"github.com/tektoncd/dashboard/pkg/router"
@@ -41,12 +39,13 @@ var (
 	kubeConfigPath     = flag.String("kube-config", "", "Path to kube config file")
 	portNumber         = flag.Int("port", 8080, "Dashboard port number")
 	readOnly           = flag.Bool("read-only", false, "Enable or disable read only mode")
-	logoutUrl          = flag.String("logout-url", "", "If set, enables logout on the frontend and binds the logout button to this url")
+	logoutURL          = flag.String("logout-url", "", "If set, enables logout on the frontend and binds the logout button to this url")
 	tenantNamespace    = flag.String("namespace", "", "If set, limits the scope of resources watched to this namespace only")
 	logLevel           = flag.String("log-level", "info", "Minimum log level output by the logger")
 	logFormat          = flag.String("log-format", "json", "Format for log output (json or console)")
 	streamLogs         = flag.Bool("stream-logs", false, "Enable log streaming instead of polling")
 	externalLogs       = flag.String("external-logs", "", "External logs provider url")
+	xFrameOptions      = flag.String("x-frame-options", "DENY", "Value for the X-Frame-Options response header, set '' to omit it")
 )
 
 func main() {
@@ -106,9 +105,10 @@ func main() {
 		TriggersNamespace:  *triggersNamespace,
 		TenantNamespace:    *tenantNamespace,
 		ReadOnly:           *readOnly,
-		LogoutURL:          *logoutUrl,
+		LogoutURL:          *logoutURL,
 		StreamLogs:         *streamLogs,
 		ExternalLogsURL:    *externalLogs,
+		XFrameOptions:      *xFrameOptions,
 	}
 
 	resource := endpoints.Resource{
@@ -124,37 +124,29 @@ func main() {
 
 	ctx := signals.NewContext()
 
-	routerHandler := router.Register(resource)
+	server, err := router.Register(resource, cfg)
+
+	if err != nil {
+		logging.Log.Errorf("Error creating proxy: %s", err.Error())
+		return
+	}
 
 	logging.Log.Info("Creating controllers")
 	resyncDur := time.Second * 30
 	controllers.StartTektonControllers(resource.DynamicClient, resyncDur, *tenantNamespace, ctx.Done())
-	controllers.StartKubeControllers(resource.K8sClient, resyncDur, *tenantNamespace, *readOnly, routerHandler, ctx.Done())
+	controllers.StartKubeControllers(resource.K8sClient, resyncDur, *tenantNamespace, *readOnly, ctx.Done())
 	controllers.StartDashboardControllers(resource.DashboardClient, resyncDur, *tenantNamespace, ctx.Done())
 
 	if isTriggersInstalled {
 		controllers.StartTriggersControllers(resource.DynamicClient, resyncDur, *tenantNamespace, ctx.Done())
 	}
 
-	logging.Log.Infof("Creating server and entering wait loop")
-	CSRF := csrf.Protect()
-	server := &http.Server{Addr: fmt.Sprintf(":%d", *portNumber), Handler: CSRF(routerHandler)}
-
-	errCh := make(chan error, 1)
-	defer close(errCh)
-	go func() {
-		// Don't forward ErrServerClosed as that indicates we're already shutting down.
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("dashboard server failed: %w", err)
-		}
-	}()
-
-	select {
-	case err := <-errCh:
-		logging.Log.Fatal(err)
-	case <-ctx.Done():
-		if err := server.Shutdown(context.Background()); err != nil {
-			logging.Log.Fatal(err)
-		}
+	l, err := server.Listen("", *portNumber)
+	if err != nil {
+		logging.Log.Errorf("Error listening: %s", err.Error())
+		return
 	}
+
+	logging.Log.Infof("Starting to serve on %s", l.Addr().String())
+	server.ServeOnListener(l)
 }

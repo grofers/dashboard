@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,93 +14,72 @@ limitations under the License.
 import React from 'react';
 import { injectIntl } from 'react-intl';
 import { connect } from 'react-redux';
-import { ALL_NAMESPACES } from '@tektoncd/dashboard-utils';
+import {
+  ALL_NAMESPACES,
+  useWebSocketReconnected
+} from '@tektoncd/dashboard-utils';
 import { TooltipDropdown } from '@tektoncd/dashboard-components';
 
-import {
-  getPipelines,
-  getSelectedNamespace,
-  isFetchingPipelines,
-  isWebSocketConnected
-} from '../../reducers';
-import { fetchPipelines } from '../../actions/pipelines';
+import { isWebSocketConnected } from '../../reducers';
+import { usePipelines, useSelectedNamespace } from '../../api';
 
-class PipelinesDropdown extends React.Component {
-  componentDidMount() {
-    const { namespace } = this.props;
-    this.props.fetchPipelines({ namespace });
-  }
+function PipelinesDropdown({
+  intl,
+  label,
+  namespace: namespaceProp,
+  webSocketConnected,
+  ...rest
+}) {
+  const { selectedNamespace } = useSelectedNamespace();
+  const namespace = namespaceProp || selectedNamespace;
 
-  componentDidUpdate(prevProps) {
-    const { namespace, webSocketConnected } = this.props;
-    const { webSocketConnected: prevWebSocketConnected } = prevProps;
-    if (
-      namespace !== prevProps.namespace ||
-      (webSocketConnected && prevWebSocketConnected === false)
-    ) {
-      this.props.fetchPipelines({ namespace });
-    }
-  }
+  const { data: pipelines = [], isFetching, refetch } = usePipelines({
+    namespace
+  });
+  useWebSocketReconnected(refetch, webSocketConnected);
 
-  render() {
-    const {
-      fetchPipelines: _fetchPipelines,
-      intl,
-      label,
-      namespace,
-      webSocketConnected,
-      ...rest
-    } = this.props;
-    const emptyText =
-      namespace === ALL_NAMESPACES
-        ? intl.formatMessage({
-            id: 'dashboard.pipelinesDropdown.empty.allNamespaces',
-            defaultMessage: 'No Pipelines found'
-          })
-        : intl.formatMessage(
-            {
-              id: 'dashboard.pipelinesDropdown.empty.selectedNamespace',
-              defaultMessage:
-                "No Pipelines found in the ''{namespace}'' namespace"
-            },
-            { namespace }
-          );
+  const items = pipelines.map(pipeline => pipeline.metadata.name);
 
-    const labelString =
-      label ||
-      intl.formatMessage({
-        id: 'dashboard.pipelinesDropdown.label',
-        defaultMessage: 'Select Pipeline'
-      });
-    return (
-      <TooltipDropdown {...rest} emptyText={emptyText} label={labelString} />
-    );
-  }
+  const emptyText =
+    namespace === ALL_NAMESPACES
+      ? intl.formatMessage({
+          id: 'dashboard.pipelinesDropdown.empty.allNamespaces',
+          defaultMessage: 'No Pipelines found'
+        })
+      : intl.formatMessage(
+          {
+            id: 'dashboard.pipelinesDropdown.empty.selectedNamespace',
+            defaultMessage:
+              "No Pipelines found in the ''{namespace}'' namespace"
+          },
+          { namespace }
+        );
+
+  const labelString =
+    label ||
+    intl.formatMessage({
+      id: 'dashboard.pipelinesDropdown.label',
+      defaultMessage: 'Select Pipeline'
+    });
+  return (
+    <TooltipDropdown
+      {...rest}
+      emptyText={emptyText}
+      items={items}
+      label={labelString}
+      loading={isFetching}
+    />
+  );
 }
 
 PipelinesDropdown.defaultProps = {
-  items: [],
-  loading: false,
   titleText: 'Pipeline'
 };
 
-function mapStateToProps(state, ownProps) {
-  const namespace = ownProps.namespace || getSelectedNamespace(state);
+function mapStateToProps(state) {
   return {
-    items: getPipelines(state, { namespace }).map(
-      pipeline => pipeline.metadata.name
-    ),
-    loading: isFetchingPipelines(state),
-    namespace,
     webSocketConnected: isWebSocketConnected(state)
   };
 }
 
-const mapDispatchToProps = {
-  fetchPipelines
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(PipelinesDropdown));
+export default connect(mapStateToProps)(injectIntl(PipelinesDropdown));

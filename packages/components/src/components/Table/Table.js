@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 The Tekton Authors
+Copyright 2019-2021 The Tekton Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -29,8 +29,6 @@ import {
 import { ALL_NAMESPACES } from '@tektoncd/dashboard-utils';
 
 import { DataTableSkeleton } from '..';
-
-import './Table.scss';
 
 const {
   TableContainer,
@@ -210,9 +208,10 @@ const Table = props => {
             )}
             {loading ? (
               <DataTableSkeleton
-                headers={headers}
                 columnCount={headers.length}
+                headers={headers}
                 rowCount={skeletonRowCount}
+                size={size}
               />
             ) : (
               <CarbonTable {...getTableProps()}>
